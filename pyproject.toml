@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-practice-attendance = "practice_attendance.server:main"
+practice-attendance = "practice_attendance.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]
