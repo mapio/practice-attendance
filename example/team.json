@@ -1,0 +1,27 @@
+{
+  "name": "Squadra Esempio",
+  "lang": "it",
+  "timezone": "Europe/Rome",
+  "season": {
+    "from": "2026-09-01",
+    "to": "2027-06-15"
+  },
+  "calendar": {
+    "url": "calendar.ics",
+    "title": "Allenamento"
+  },
+  "roster": {
+    "1": "Anna",
+    "2": "Bianca",
+    "3": "Chiara",
+    "4": "Diana",
+    "5": "Elena",
+    "6": "Francesca",
+    "7": "Giulia",
+    "8": "Irene",
+    "9": "Laura",
+    "10": "Marta",
+    "11": "Nadia",
+    "12": "Sara"
+  }
+}

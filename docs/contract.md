@@ -16,6 +16,9 @@ in the code that depends on it.
   after, with what was done and the time), added and flushed to the disk before
   the file is replaced. Players appear by identifier only, and the calendar
   address never. Never read by the server.
+- `data/imported_at`: the UTC instant of the last import, one line, written by
+  the server (it is not in `practices.json`, so that an import that changes
+  nothing leaves that file as it was).
 - `i18n.json`: UI strings, `{lang: {key: text}}`.
 
 The server takes the paths of the team file and of the data directory as
@@ -30,10 +33,11 @@ options; the salt is the file `salt` beside the team file.
 - `season`: `{from, to}`, local dates (`YYYY-MM-DD`), inclusive: the calendar is
   imported only within them, and they are the default range of the statistics.
 - `calendar`: optional, `{url, title}`. `url` is the secret iCal address of the
-  calendar; it is never sent to a browser nor written to a log or a journal.
-  `title` is the word a practice's title begins with (`Allenamento`), compared
-  ignoring case. Without it nothing is imported and every practice is added by
-  hand.
+  calendar; it is never sent to a browser nor written to a log or a journal. It
+  may also be a file path (relative to the team file's directory) or a `file://`
+  URL, for trials and tests. `title` is the word a practice's title begins with
+  (`Allenamento`), compared ignoring case. Without it nothing is imported and
+  every practice is added by hand.
 - `roster`: `{player-id: display name}`. Ids are stable text and carry no name
   (`"7"`); the practices refer to them.
 
