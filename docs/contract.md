@@ -147,13 +147,14 @@ probed.
 
 ### Pages
 
-Static HTML; the page reads the token from its URL.
+Static HTML in `src/practice_attendance/static/`, with `app.css`, `app.js` and
+`i18n.json`; the page reads the token from its URL.
 
-- `/`: `404`, the page of the link that does not work.
-- `/<tok>`: the list of practices.
-- `/<tok>/<p>`: the screen of one practice, where the staff ticks who is
-  present.
-- `/<tok>/stats`: the statistics.
+- `/`: `404`, `notfound.html`, the page of the link that does not work.
+- `/<tok>`: `list.html`, the list of practices.
+- `/<tok>/<p>`: `practice.html`, the screen of one practice, where the staff
+  ticks who is present.
+- `/<tok>/stats`: `stats.html`, the statistics.
 - `/privacy`: the privacy notice, the file `privacy.html` beside the team file
   (`404` when it is not there); no token, and not counted by the limit on
   unknown tokens.
