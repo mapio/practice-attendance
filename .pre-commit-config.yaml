@@ -1,0 +1,39 @@
+# setup-formatting 2026-10-23: rules 1
+repos:
+  - repo: local
+    hooks:
+      - id: mdformat
+        name: mdformat
+        entry: uv run --frozen mdformat --wrap 80 --number
+        language: system
+        types: [markdown]
+        # memory notes use [[wiki links]], which mdformat escapes
+        exclude: ^\.claude/memory/
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types_or: [python, jupyter]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types_or: [python, jupyter, markdown]
+      - id: pretty-format-json
+        name: pretty-format-json
+        entry: uv run --frozen pretty-format-json --autofix --indent 2 --no-sort-keys --no-ensure-ascii
+        language: system
+        types: [json]
+      - id: prettier
+        name: prettier
+        entry: prettier --write
+        language: node
+        additional_dependencies: [prettier@3.9.10]
+        types_or: [html, css, javascript]
+      # look like the keyboard's "-" but are not
+      - id: keyboard-dashes
+        name: no U+2013 EN DASH or U+2212 MINUS SIGN
+        # pygrep matches bytes: each character's whole UTF-8 sequence
+        entry: '\xe2\x80\x93|\xe2\x88\x92'
+        language: pygrep
+        types: [text]
