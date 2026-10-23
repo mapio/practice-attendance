@@ -455,3 +455,7 @@ dialog::backdrop {
   display: table;
   margin: 0.2rem 0 0;
 }
+
+[hidden] {
+  display: none !important;
+}
