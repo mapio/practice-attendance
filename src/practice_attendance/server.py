@@ -18,8 +18,8 @@ from . import calendar, stats
 from .errors import ApiError, invalid, not_found
 from .limiter import Limiter
 from .store import Store, fmt, opens_at, parse_instant
-from .team import Team, TeamFile
-from .tokens import read_salt, staff_token
+from .team import ConfigError, Team, TeamFile
+from .tokens import player_token, read_salt, staff_token
 
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger("practice-attendance")
@@ -42,12 +42,27 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     salt or the team file is unusable."""
     team_path = Path(team_path)
     static = Path(static)
-    token = staff_token(read_salt(team_path.with_name("salt")))
+    salt = read_salt(team_path.with_name("salt"))
+    token = staff_token(salt)
     store = Store(data_dir, now)
     languages = None
     if (static / "i18n.json").exists():
         languages = set(json.loads((static / "i18n.json").read_text(encoding="utf-8")))
-    teams = TeamFile(team_path, store.named_players, languages)
+    known = {}  # the player tokens of the team in force
+
+    def player_of(team):
+        """{token: player id} of `team`, which a collision refuses."""
+        if known.get("team") is not team:
+            found = {}
+            for player in team.roster:
+                slug = player_token(salt, player)
+                if slug == token or slug in found:
+                    raise ConfigError(f"$.roster.{player}: its token is not its own")
+                found[slug] = player
+            known.update(team=team, players=found)
+        return known["players"]
+
+    teams = TeamFile(team_path, store.named_players, languages, player_of)
     limiter = Limiter(
         UNKNOWN_TOKEN_LIMIT, UNKNOWN_TOKEN_WINDOW, lambda: now().timestamp()
     )
@@ -91,15 +106,36 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         failure = ApiError(500, "server_error", "something went wrong")
         return await api_error(request, failure)
 
-    def staff(request: Request, tok: str):
-        """The team, if `tok` is the staff token; else 404, or 429 once the
-        address has asked for too many unknown ones."""
-        if tok.lower() != token:
+    def caller(request: Request, tok: str):
+        """`(team, player)`, `player` being `None` for the staff token; else 404,
+        or 429 once the address has asked for too many unknown tokens."""
+        team = teams.current()
+        slug = tok.lower()
+        if slug == token:
+            return team, None
+        player = player_of(team).get(slug)
+        if player is None:
             if not limiter.allow(request.client.host if request.client else "?"):
                 raise ApiError(429, "rate_limited", "too many attempts")
             raise not_found()
-        return teams.current()
+        return team, player
 
+    def staff(who: Annotated[tuple, Depends(caller)]):
+        """The team, for the staff token alone: a player's gets the 404 of any
+        path that is not hers."""
+        team, player = who
+        if player is not None:
+            raise not_found()
+        return team
+
+    def athlete(who: Annotated[tuple, Depends(caller)]):
+        """`(team, player)`, for a player's token alone."""
+        if who[1] is None:
+            raise not_found()
+        return who
+
+    Caller = Annotated[tuple, Depends(caller)]
+    Athlete = Annotated[tuple, Depends(athlete)]
     Staff = Annotated[Team, Depends(staff)]
     Payload = Annotated[dict, Body()]
 
@@ -127,6 +163,7 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
                 None if taken is None else sum(s == "present" for s in taken.values())
             )
             out["of"] = None if taken is None else len(taken)
+            out["announced"] = len(p.get("absences", {}))
         return out
 
     def listing(team):
@@ -148,6 +185,7 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
             "practice": view(p),
             "roster": team.roster,
             "attendance": p["attendance"],
+            "announced": [i for i in team.roster if i in p.get("absences", {})],
         }
 
     # not counted by the limit: they name no token
@@ -171,8 +209,22 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     # API
 
     @app.get("/api/{tok}")
-    def api_list(team: Staff):
+    def api_list(who: Caller):
+        team, player = who
+        if player is not None:
+            return stats.athlete(store.all(), team, player, now())
         return listing(team)
+
+    @app.get("/api/{tok}/links")
+    def api_links(team: Staff):
+        tokens = {player: slug for slug, player in player_of(team).items()}
+        return {
+            "team": team.public(),
+            "players": [
+                {"id": i, "name": name, "token": tokens[i]}
+                for i, name in team.roster.items()
+            ],
+        }
 
     @app.get("/api/{tok}/stats")
     def api_stats(
@@ -255,6 +307,18 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         store.delete_manual(practice_of(p)["id"])
         return listing(team)
 
+    @app.put("/api/{tok}/{p}/absence")
+    def api_announce(p: str, who: Athlete):
+        team, player = who
+        store.set_absence(practice_of(p)["id"], player, True)
+        return stats.athlete(store.all(), team, player, now())
+
+    @app.delete("/api/{tok}/{p}/absence")
+    def api_withdraw(p: str, who: Athlete):
+        team, player = who
+        store.set_absence(practice_of(p)["id"], player, False)
+        return stats.athlete(store.all(), team, player, now())
+
     @app.put("/api/{tok}/{p}/attendance")
     def api_attendance(p: str, payload: Payload, team: Staff):
         attendance = payload.get("attendance")
@@ -268,8 +332,12 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     # pages
 
     @app.get("/{tok}")
-    def page_list(team: Staff):
-        return page("list.html")
+    def page_list(who: Caller):
+        return page("list.html" if who[1] is None else "athlete.html")
+
+    @app.get("/{tok}/links")
+    def page_links(team: Staff):
+        return page("links.html")
 
     @app.get("/{tok}/stats")
     def page_stats(team: Staff):

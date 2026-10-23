@@ -1,6 +1,7 @@
 """`practice-attendance serve|urls`."""
 
 import argparse
+import json
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
@@ -9,8 +10,8 @@ from pathlib import Path
 import uvicorn
 
 from .server import create_app
-from .team import ConfigError
-from .tokens import read_salt, staff_token
+from .team import ConfigError, parse
+from .tokens import player_token, read_salt, staff_token
 
 
 def main(argv=None):
@@ -29,11 +30,19 @@ def main(argv=None):
             )
         else:
             command.add_argument("--base", default="http://127.0.0.1:8000")
+            command.add_argument(
+                "--players", action="store_true", help="also each player's link"
+            )
     args = parser.parse_args(argv)
     try:
         if args.command == "urls":
             salt = read_salt(args.team.with_name("salt"))
-            print(f"{args.base.rstrip('/')}/{staff_token(salt)}")
+            base = args.base.rstrip("/")
+            print(f"{base}/{staff_token(salt)}")
+            if args.players:
+                team = parse(json.loads(args.team.read_text(encoding="utf-8")))
+                for player, name in team.roster.items():
+                    print(f"{name}: {base}/{player_token(salt, player)}")
             return 0
         args.logs.mkdir(parents=True, exist_ok=True)
         handler = RotatingFileHandler(
@@ -42,7 +51,7 @@ def main(argv=None):
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         logging.getLogger("practice-attendance").addHandler(handler)
         app = create_app(args.team, args.data)
-    except (ValueError, ConfigError) as error:
+    except (OSError, ValueError, ConfigError) as error:
         print(f"practice-attendance: {error}", file=sys.stderr)
         return 1
     # no access log: the path of a request holds the token

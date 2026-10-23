@@ -101,12 +101,14 @@ def parse(obj, languages=None):
 
 class TeamFile:
     """The configuration in force. `named` tells which players the attendance
-    names, so that a file dropping one of them is refused."""
+    names, so that a file dropping one of them is refused; `check`, if given,
+    raises `ConfigError` for a team it refuses for its own reasons."""
 
-    def __init__(self, path, named, languages=None):
+    def __init__(self, path, named, languages=None, check=None):
         self._path = Path(path)
         self._named = named
         self._languages = languages
+        self._check = check
         self.team = self._read()  # at startup a failure is fatal
         self._mtime = self._path.stat().st_mtime_ns
 
@@ -119,6 +121,8 @@ class TeamFile:
         dropped = sorted(self._named() - set(team.roster))
         if dropped:
             raise ConfigError(f"$.roster: drops players with attendance: {dropped}")
+        if self._check:
+            self._check(team)
         return team
 
     def current(self):

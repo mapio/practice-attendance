@@ -70,30 +70,54 @@ reused. A practice is:
 - `attendance`: `null` while nobody has taken it, else `{player-id: status}`,
   `status` being `present` or `absent`. A player the map does not name was not
   expected at that practice.
+- `absences`: absent while nobody has announced; else `{player-id: instant}`,
+  the UTC instant at which that player announced she will not come (see
+  *Notice*). Information for the staff: never part of `attendance`, never
+  counted by the statistics, and kept when the attendance is taken.
 
 Practices are kept in order of `start`.
 
 ## Tokens
 
-The server has one token, for the staff, never written in the team file: six
-lowercase letters from `acdefhmnprtu`, common Italian letters that cannot be
-taken for a digit or for another letter. A URL is matched case-insensitively.
-The server computes it: the SHA-256 of `<salt>:staff`, read as base-12 digits,
-first six. The content of the salt file, minus surrounding whitespace, must not
-be empty; it is never committed and must be kept, since the link depends on it.
-The server does not log the token; `practice-attendance urls` prints the link. A
-link cannot be revoked alone: changing the salt changes it.
+The server has one token for the staff and one for each player of the roster,
+never written in the team file: six lowercase letters from `acdefhmnprtu`,
+common Italian letters that cannot be taken for a digit or for another letter. A
+URL is matched case-insensitively. The server computes them: the SHA-256 of
+`<salt>:staff` for the staff, of `<salt>:player:<id>` for a player, read as
+base-12 digits, first six. A roster that makes two tokens equal, the staff's
+included, is refused like any invalid team file.
+
+The content of the salt file, minus surrounding whitespace, must not be empty;
+it is never committed and must be kept, since the links depend on it. The server
+does not log a token; `practice-attendance urls` prints the staff link, and with
+`--players` the link of each player. A link cannot be revoked alone: changing
+the salt changes them all.
+
+The staff token opens everything. A player token opens only the page and the
+record of that player (see *Athlete record*) and, to announce or withdraw her
+absence, the two requests of *Notice*: on any other path it gets `404`, as if it
+were unknown but without counting against the limit below. The server returns
+the players' tokens to the staff alone, in the list of links.
 
 There are 12⁶ = 2,985,984 slugs. To make guessing impractical, requests with an
 unknown token are limited per client address (as the server sees it, so behind a
 proxy it runs with proxy headers on) to 10 per minute; the next ones get `429`.
-Requests with the known token are not limited.
+Requests with a known token are not limited.
 
 ## Window
 
 Attendance is accepted from `opens_at`, 60 minutes before the practice's
 `start`, and never locks: it can be corrected afterwards. Before `opens_at` the
 write is refused with `409 not_open_yet`. Reads are never refused.
+
+### Notice
+
+A player may announce her absence from `notice_opens_at`, 6 hours before the
+practice's `start`, up to `start`, and withdraw it in the same interval. Before
+it the request is refused with `409 notice_not_open_yet`, from `start` on with
+`409 notice_closed`, and for a cancelled practice with `409 cancelled`.
+Announcing twice keeps the first instant; withdrawing what was not announced
+changes nothing.
 
 ## Import
 
@@ -125,9 +149,12 @@ What the server returns.
   `{id, source, start, end, location, cancelled, taken, opens_at, open}`;
   `taken` is whether `attendance` is not `null`, `opens_at` a UTC instant and
   `open` whether now is past it. In the list it also carries `present` and `of`,
-  the counts of its attendance (`null` if not taken).
+  the counts of its attendance (`null` if not taken), and `announced`, the
+  number of players who announced their absence.
 - `roster`: `{id: name}`.
 - `attendance`: the practice's map, or `null`.
+- `announced`: the ids of the players who announced their absence, in the
+  roster's order.
 
 ### Statistics
 
@@ -142,12 +169,35 @@ number of those in the range whose `start` has passed and that nobody has taken
 in which she is `present`, and in which she is named at all. `players` are in
 the roster's order.
 
+### Athlete record
+
+What a player's page shows, over the practices of the season (by the local date
+of `start`) that are not cancelled, have been taken and name her:
+
+`{team, player, present, of, percent, team_percent, practices, next}`:
+
+- `player`: `{id, name}`, hers.
+- `present`, `of`: as in the statistics, over the season.
+- `percent`: `present` over `of` as a whole number, halves rounded up; `null`
+  when `of` is `0`.
+- `team_percent`: the same ratio over every player of the roster, hers included;
+  `null` when no player is named. It is the only datum of the others that is
+  returned: no other name, count or practice id ever is.
+- `practices`: `[{start, end, location, status}]`, newest first, `status` being
+  `present` or `absent`.
+- `next`: the first practice, not cancelled, whose `start` has not come, as
+  `{id, start, end, location, notice_opens_at, notice_open, announced}`
+  (`notice_open` whether now is within *Notice*'s interval, `announced` whether
+  she has announced); `null` when there is none.
+
+A practice nobody has taken does not appear: a gap in the record is not an
+absence.
+
 ## Endpoints
 
-URLs are short because they are typed and sent around: the staff token alone
-(`<tok>` below) and a practice by its id (`<p>`), for example `/hmdpet/12`. An
-unknown token and an unknown practice give the same `404`, so nothing can be
-probed.
+URLs are short because they are typed and sent around: a token alone (`<tok>`
+below) and a practice by its id (`<p>`), for example `/hmdpet/12`. An unknown
+token and an unknown practice give the same `404`, so nothing can be probed.
 
 ### Pages
 
@@ -155,10 +205,13 @@ Static HTML in `src/practice_attendance/static/`, with `app.css`, `app.js` and
 `i18n.json`; the page reads the token from its URL.
 
 - `/`: `404`, `notfound.html`, the page of the link that does not work.
-- `/<tok>`: `list.html`, the list of practices.
+- `/<tok>`: `list.html`, the list of practices, for the staff token;
+  `athlete.html`, the record of a player (see *Athlete record*), for a player's.
 - `/<tok>/<p>`: `practice.html`, the screen of one practice, where the staff
   ticks who is present.
 - `/<tok>/stats`: `stats.html`, the statistics.
+- `/<tok>/links`: `links.html`, the players' links, to copy and send, for the
+  staff token only.
 - `/privacy`: the privacy notice, the file `privacy.html` beside the team file
   (`404` when it is not there); no token, and not counted by the limit on
   unknown tokens.
@@ -175,11 +228,12 @@ the answer stays JSON.
 The same paths under `/api`, mirroring the pages (never typed, so no need to
 shorten further).
 
-- `GET /api/<tok>`: `{team, practices, imported_at}`, `practices` a list by
-  `start` of the practices that are not cancelled, then of the cancelled ones
-  that have attendance; `imported_at` the UTC instant of the last import, or
-  `null`.
-- `GET /api/<tok>/<p>`: `{team, practice, roster, attendance}`.
+- `GET /api/<tok>`: for the staff token `{team, practices, imported_at}`,
+  `practices` a list by `start` of the practices that are not cancelled, then of
+  the cancelled ones that have attendance; `imported_at` the UTC instant of the
+  last import, or `null`. For a player's, her record (see *Athlete record*), and
+  it is the only request she can make.
+- `GET /api/<tok>/<p>`: `{team, practice, roster, attendance, announced}`.
 - `PUT /api/<tok>/<p>/attendance`: body `{attendance: {player-id: status}}`,
   replacing the whole map. `200`, the same body as the `GET`. `409 not_open_yet`
   before `opens_at`, `409 cancelled` for a cancelled practice,
@@ -201,17 +255,24 @@ shorten further).
 - `GET /api/<tok>/stats?from=YYYY-MM-DD&to=YYYY-MM-DD`: the statistics; the
   range defaults to the season. `422 invalid_value` for a malformed date or
   `from` after `to`.
+- `GET /api/<tok>/links`: `{team, players: [{id, name, token}]}`, in the
+  roster's order; the staff token only.
+- `PUT /api/<tok>/<p>/absence` and `DELETE /api/<tok>/<p>/absence`: a player's
+  token only, for her own absence (see *Notice*); `200`, her record. `404` for
+  the staff token, `409 notice_not_open_yet`, `409 notice_closed`,
+  `409 cancelled`.
 
 ### Errors
 
-Status `404` (unknown token or practice), `409` (the request breaks a rule),
-`422` (the request is malformed), `429` (too many unknown tokens from one
-address, see *Tokens*), `502` (the calendar cannot be read), `500` (an error of
-the server, logged in `logs/app.log` with its traceback). Body
-`{"error": code, "detail": text}`, with `code` among `not_open_yet`,
-`cancelled`, `imported_practice`, `has_attendance`, `no_calendar`,
-`unknown_player`, `invalid_value`, `not_found`, `rate_limited`,
-`calendar_unavailable`, `server_error`.
+Status `404` (unknown token or practice, or a path a player's token does not
+open), `409` (the request breaks a rule), `422` (the request is malformed),
+`429` (too many unknown tokens from one address, see *Tokens*), `502` (the
+calendar cannot be read), `500` (an error of the server, logged in
+`logs/app.log` with its traceback). Body `{"error": code, "detail": text}`, with
+`code` among `not_open_yet`, `cancelled`, `imported_practice`, `has_attendance`,
+`no_calendar`, `notice_not_open_yet`, `notice_closed`, `unknown_player`,
+`invalid_value`, `not_found`, `rate_limited`, `calendar_unavailable`,
+`server_error`.
 
 ## Strings
 

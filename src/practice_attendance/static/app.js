@@ -1,4 +1,4 @@
-// The staff pages: one script, the page named by <body data-page>.
+// The pages: one script, the page named by <body data-page>.
 "use strict";
 
 const TOKEN = location.pathname.split("/")[1] || "";
@@ -180,6 +180,14 @@ function frame(team, current) {
       },
       t("nav_stats"),
     ),
+    h(
+      "a",
+      {
+        href: link("/links"),
+        "aria-current": current === "links" ? "page" : false,
+      },
+      t("nav_links"),
+    ),
   );
   document
     .getElementById("top")
@@ -354,6 +362,10 @@ function practiceCard(p, now) {
       { class: "where" },
       p.location,
       p.source === "manual" && h("span", { class: "tag manual" }, t("manual")),
+      p.announced > 0 &&
+        !p.taken &&
+        !p.cancelled &&
+        h("span", { class: "tag soon" }, t("announced_count", p.announced)),
     ),
     state,
   );
@@ -517,7 +529,13 @@ function renderPractice(root, data, reload) {
         },
       },
       h("span", { class: "check", "aria-hidden": "true" }),
-      h("span", { class: "name" }, roster[id]),
+      h(
+        "span",
+        { class: "name" },
+        roster[id],
+        data.announced.includes(id) &&
+          h("span", { class: "tag soon" }, t("announced_mark")),
+      ),
       h("span", { class: "state" }),
     );
     rows.set(id, row);
@@ -762,6 +780,166 @@ async function statsPage() {
   renderStats(result, first);
 }
 
+// ---- athlete page: one player's own record, read only
+
+// The next practice, with the button to announce an absence while it is allowed.
+function nextPractice(next, show) {
+  if (!next) return null;
+  const msg = h("div", { class: "msg err", role: "alert", hidden: true });
+  const send = (method, label) => {
+    const btn = h(
+      "button",
+      {
+        class: `btn${method === "PUT" ? " primary" : ""}`,
+        onclick: () =>
+          busy(btn, t("saving"), async () => {
+            try {
+              show(await api(method, `/${next.id}/absence`));
+            } catch (e) {
+              flash(msg, "err", errorText(e));
+            }
+          }),
+      },
+      label,
+    );
+    return btn;
+  };
+  const opens = `${fmtDay(next.notice_opens_at)} ${fmtTime(next.notice_opens_at)}`;
+  return h(
+    "section",
+    { class: "next" },
+    h("h2", {}, t("next_practice")),
+    h(
+      "p",
+      {},
+      h("strong", {}, fmtLong(next.start)),
+      ` ${fmtTime(next.start)}-${fmtTime(next.end)}`,
+      next.location && ` · ${next.location}`,
+    ),
+    next.announced && h("p", { class: "msg ok" }, t("notice_done")),
+    next.announced && next.notice_open && send("DELETE", t("notice_withdraw")),
+    !next.announced &&
+      (next.notice_open
+        ? send("PUT", t("notice_announce"))
+        : h("p", { class: "muted" }, t("notice_later", opens))),
+    msg,
+  );
+}
+
+function renderAthlete(root, record) {
+  const rows = record.practices.map((p) =>
+    h(
+      "div",
+      { class: "card" },
+      h(
+        "div",
+        { class: "when" },
+        h("span", { class: "day" }, fmtDay(p.start)),
+        h("span", { class: "time" }, `${fmtTime(p.start)}-${fmtTime(p.end)}`),
+      ),
+      h("div", { class: "where" }, p.location),
+      h(
+        "span",
+        { class: `tag ${p.status === "present" ? "taken" : "missing"}` },
+        t(p.status),
+      ),
+    ),
+  );
+  root.replaceChildren(
+    h("h1", {}, record.player.name),
+    nextPractice(record.next, (r) => renderAthlete(root, r)),
+    record.of
+      ? h(
+          "p",
+          { class: "summary" },
+          t("athlete_summary", record.present, record.of, record.percent),
+        )
+      : h("p", { class: "muted" }, t("athlete_empty")),
+    record.team_percent != null &&
+      h("p", { class: "muted" }, t("athlete_team", record.team_percent)),
+    rows.length && h("section", {}, h("h2", {}, t("athlete_practices")), rows),
+    h(
+      "p",
+      { class: "muted small" },
+      h("a", { href: "/privacy" }, t("privacy")),
+    ),
+  );
+}
+
+async function athletePage() {
+  const root = document.getElementById("app");
+  await guarded(
+    root,
+    async () => {
+      const record = await api("GET", "");
+      await loadStrings(record.team.lang);
+      applyStaticStrings();
+      TZ = record.team.timezone;
+      document
+        .getElementById("top")
+        .replaceChildren(h("strong", {}, record.team.name));
+      return record;
+    },
+    (record) => renderAthlete(root, record),
+  );
+}
+
+// ---- links page: each player's link, to copy and send
+
+function renderLinks(root, data) {
+  const msg = h("div", { class: "msg warn", role: "status", hidden: true });
+  const rows = data.players.map((p) => {
+    const url = `${location.origin}/${p.token}`;
+    const field = h("input", {
+      class: "url",
+      readonly: true,
+      value: url,
+      "aria-label": p.name,
+    });
+    const btn = h("button", { class: "btn" }, t("copy"));
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        flash(msg, "warn", "");
+        btn.textContent = t("copied");
+        setTimeout(() => (btn.textContent = t("copy")), 1500);
+      } catch {
+        field.focus();
+        field.select();
+        flash(msg, "warn", t("copy_manual"));
+      }
+    });
+    return h(
+      "li",
+      { class: "linkrow" },
+      h("span", { class: "name" }, p.name),
+      field,
+      btn,
+    );
+  });
+  root.replaceChildren(
+    h("p", { class: "muted" }, t("links_note")),
+    msg,
+    h("ul", { class: "links" }, rows),
+  );
+}
+
+async function linksPage() {
+  const root = document.getElementById("app");
+  await guarded(
+    root,
+    async () => {
+      const data = await api("GET", "/links");
+      await loadStrings(data.team.lang);
+      applyStaticStrings();
+      TZ = data.team.timezone;
+      frame(data.team, "links");
+      return data;
+    },
+    (data) => renderLinks(root, data),
+  );
+}
+
 // ---- not found
 
 async function notFoundPage() {
@@ -779,6 +957,8 @@ const PAGES = {
   list: listPage,
   practice: practicePage,
   stats: statsPage,
+  athlete: athletePage,
+  links: linksPage,
   notfound: notFoundPage,
 };
 PAGES[document.body.dataset.page]?.();

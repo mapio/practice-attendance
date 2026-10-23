@@ -1,5 +1,6 @@
-"""The staff token: derived from the salt, never stored (docs/contract.md,
-*Tokens*), so the link survives a restart and dies with a new salt."""
+"""The tokens of the staff and of each player: derived from the salt, never
+stored (docs/contract.md, *Tokens*), so the links survive a restart and die with
+a new salt."""
 
 import hashlib
 from pathlib import Path
@@ -19,11 +20,19 @@ def read_salt(path):
     return salt
 
 
-def staff_token(salt):
-    """The first six base-12 digits of the SHA-256 of `<salt>:staff`."""
-    number = int.from_bytes(hashlib.sha256(f"{salt}:staff".encode()).digest(), "big")
+def _token(text):
+    """The first six base-12 digits of the SHA-256 of `text`."""
+    number = int.from_bytes(hashlib.sha256(text.encode()).digest(), "big")
     digits = []
     while number:
         number, digit = divmod(number, len(ALPHABET))
         digits.append(ALPHABET[digit])
     return "".join(reversed(digits))[:LENGTH]
+
+
+def staff_token(salt):
+    return _token(f"{salt}:staff")
+
+
+def player_token(salt, player):
+    return _token(f"{salt}:player:{player}")

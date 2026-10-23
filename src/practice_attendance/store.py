@@ -13,6 +13,7 @@ from . import journal
 from .errors import ApiError
 
 OPENS_BEFORE = timedelta(minutes=60)
+NOTICE_BEFORE = timedelta(hours=6)
 STATUSES = ("present", "absent")
 
 
@@ -33,6 +34,10 @@ def parse_instant(text):
 
 def opens_at(practice):
     return parse_instant(practice["start"]) - OPENS_BEFORE
+
+
+def notice_opens_at(practice):
+    return parse_instant(practice["start"]) - NOTICE_BEFORE
 
 
 class Store:
@@ -169,6 +174,28 @@ class Store:
             if status not in STATUSES:
                 raise ApiError(422, "invalid_value", f"invalid status {status!r}")
         return self._replace(practice_id, "attendance", change)
+
+    def set_absence(self, practice_id, player, announced):
+        """A player announces or withdraws her absence; docs/contract.md,
+        *Notice*, is checked here, under the lock."""
+
+        def change(p):
+            now = self._now()
+            if p.get("cancelled"):
+                raise ApiError(409, "cancelled", "the practice is cancelled")
+            if now < notice_opens_at(p):
+                raise ApiError(409, "notice_not_open_yet", "too early to announce")
+            if now >= parse_instant(p["start"]):
+                raise ApiError(409, "notice_closed", "the practice has started")
+            absences = dict(p.get("absences", {}))
+            if announced:
+                absences.setdefault(player, fmt(now))
+            else:
+                absences.pop(player, None)
+            kept = {k: v for k, v in p.items() if k != "absences"}
+            return {**kept, "absences": absences} if absences else kept
+
+        return self._replace(practice_id, "absence", change)
 
     def reconcile(self, events, in_season):
         """Make the practices of `calendar` source match `events`, a dict

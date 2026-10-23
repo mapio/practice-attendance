@@ -29,7 +29,7 @@ def pages(tmp_path):
     """Stand-in pages: the real ones belong to the front end."""
     static = tmp_path / "static"
     static.mkdir()
-    for name in ("list", "practice", "stats", "notfound"):
+    for name in ("list", "practice", "stats", "athlete", "links", "notfound"):
         (static / f"{name}.html").write_text(f"<p>{name}</p>")
     return static
 
