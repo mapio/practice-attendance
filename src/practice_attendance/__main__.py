@@ -54,14 +54,16 @@ def main(argv=None):
     except (OSError, ValueError, ConfigError) as error:
         print(f"practice-attendance: {error}", file=sys.stderr)
         return 1
-    # no access log: the path of a request holds the token
+    # no access log: the path of a request holds the token. Only a proxy on
+    # loopback (uvicorn's default) is believed about X-Forwarded-For, and then the
+    # last entry it did not add itself is the visitor: trusting every peer would
+    # take the first entry, which the visitor writes.
     uvicorn.run(
         app,
         host=args.host,
         port=args.port,
         access_log=False,
         proxy_headers=args.proxy_headers,
-        forwarded_allow_ips="*" if args.proxy_headers else None,
     )
     return 0
 
