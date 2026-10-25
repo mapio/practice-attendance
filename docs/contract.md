@@ -101,8 +101,9 @@ the players' tokens to the staff alone, in the list of links.
 
 There are 12⁶ = 2,985,984 slugs. To make guessing impractical, requests with an
 unknown token are limited per client address (as the server sees it, so behind a
-proxy it runs with proxy headers on) to 10 per minute; the next ones get `429`.
-Requests with a known token are not limited.
+proxy it runs with proxy headers on, trusting a proxy on loopback only; an IPv6
+address counts by its /64) to 10 per minute; the next ones get `429`. Requests
+with a known token are not limited.
 
 ## Window
 

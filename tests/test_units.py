@@ -94,3 +94,9 @@ def test_reload_refuses_a_file_dropping_a_player_with_attendance(
     path.write_text(json.dumps(team))
     body = client.get(api).json()
     assert body["team"]["name"] != "Senza"
+
+
+def test_ipv6_addresses_of_one_64_share_a_count():
+    limiter = Limiter(3, 60, lambda: 0.0)
+    assert [limiter.allow(f"2001:db8:1::{i}") for i in range(4)] == [True] * 3 + [False]
+    assert limiter.allow("2001:db8:2::1")
