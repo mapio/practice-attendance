@@ -314,7 +314,11 @@ function practiceDialog(practice, { onSave, onDelete }) {
       save,
       h(
         "button",
-        { class: "btn", type: "button", onclick: () => dlg.close() },
+        {
+          class: "btn secondary",
+          type: "button",
+          onclick: () => dlg.close(),
+        },
         t("cancel"),
       ),
       onDelete &&
@@ -354,7 +358,7 @@ function practiceDialog(practice, { onSave, onDelete }) {
       }
     });
   });
-  dlg.append(form);
+  dlg.append(h("article", {}, form));
   // A page re-renders after a change: the previous dialog must not pile up.
   for (const old of document.querySelectorAll("dialog")) old.remove();
   document.body.append(dlg);
