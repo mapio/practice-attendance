@@ -7,3 +7,7 @@ JSON files: no database, no accounts, no cookies. The practices are imported
 from a calendar.
 
 This repository is the code only; it is just started.
+
+## Licence
+
+GNU General Public License, version 3 or later: see `LICENSE`.
