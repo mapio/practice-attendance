@@ -111,13 +111,13 @@ def test_percent_rounds_halves_up_and_has_none_without_practices():
 def test_urls_prints_the_staff_link_and_with_players_each_players(home, salt, capsys):
     team = str(home / "team.json")
     assert cli.main(["urls", "--team", team, "--base", "https://x.test/"]) == 0
-    assert capsys.readouterr().out == f"https://x.test/{staff_token(salt)}\n"
+    assert capsys.readouterr().out == f"https://x.test/{staff_token(salt)}/\n"
     assert (
         cli.main(["urls", "--team", team, "--base", "https://x.test", "--players"]) == 0
     )
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0] == f"https://x.test/{staff_token(salt)}"
-    assert lines[1] == f"Anna: https://x.test/{player_token(salt, '1')}"
+    assert lines[0] == f"https://x.test/{staff_token(salt)}/"
+    assert lines[1] == f"Anna: https://x.test/{player_token(salt, '1')}/"
     assert len(lines) == 1 + 12
 
 

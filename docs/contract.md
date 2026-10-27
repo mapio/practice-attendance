@@ -90,8 +90,9 @@ included, is refused like any invalid team file.
 The content of the salt file, minus surrounding whitespace, must not be empty;
 it is never committed and must be kept, since the links depend on it. The server
 does not log a token; `practice-attendance urls` prints the staff link, and with
-`--players` the link of each player. A link cannot be revoked alone: changing
-the salt changes them all.
+`--players` the link of each player, each ending in a slash: that is the scope
+of the installed app, so a link opens in the app where it is installed. A link
+cannot be revoked alone: changing the salt changes them all.
 
 The staff token opens everything. A player token opens only the page and the
 record of that player (see *Athlete record*) and, to announce or withdraw her

@@ -38,11 +38,13 @@ def main(argv=None):
         if args.command == "urls":
             salt = read_salt(args.team.with_name("salt"))
             base = args.base.rstrip("/")
-            print(f"{base}/{staff_token(salt)}")
+            # the trailing slash is the installed app's scope: a link with it opens
+            # in the app where it is installed
+            print(f"{base}/{staff_token(salt)}/")
             if args.players:
                 team = parse(json.loads(args.team.read_text(encoding="utf-8")))
                 for player, name in team.roster.items():
-                    print(f"{name}: {base}/{player_token(salt, player)}")
+                    print(f"{name}: {base}/{player_token(salt, player)}/")
             return 0
         args.logs.mkdir(parents=True, exist_ok=True)
         handler = RotatingFileHandler(

@@ -203,7 +203,7 @@ function frame(team, current) {
     {},
     h(
       "a",
-      { href: link(""), "aria-current": current === "list" ? "page" : false },
+      { href: link("/"), "aria-current": current === "list" ? "page" : false },
       t("nav_practices"),
     ),
     h(
@@ -590,7 +590,7 @@ function renderPractice(root, data, reload) {
           (s) => s === "present",
         ).length;
         flash(msg, "ok", t("saved", ok, Object.keys(res.attendance).length));
-        msg.append(" ", h("a", { href: link("") }, t("back_to_list")));
+        msg.append(" ", h("a", { href: link("/") }, t("back_to_list")));
       } catch (e) {
         flash(msg, "err", errorText(e));
       }
@@ -624,7 +624,7 @@ function renderPractice(root, data, reload) {
       onDelete: async () => {
         dirty = false;
         await api("DELETE", `/${practice.id}`);
-        location.href = link("");
+        location.href = link("/");
       },
     });
     edit = h(
@@ -635,7 +635,7 @@ function renderPractice(root, data, reload) {
   }
 
   root.replaceChildren(
-    h("a", { class: "back", href: link("") }, `← ${t("back_to_list")}`),
+    h("a", { class: "back", href: link("/") }, `← ${t("back_to_list")}`),
     h(
       "header",
       { class: "pinfo" },

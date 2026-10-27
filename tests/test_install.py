@@ -130,3 +130,10 @@ def test_every_string_of_the_install_page_exists_in_every_language():
     for lang, keys in languages.items():
         assert used <= set(keys), lang
     assert len({frozenset(keys) for keys in languages.values()}) == 1
+
+
+def test_no_link_of_the_pages_leaves_the_scope_of_the_installed_app():
+    # the scope is /<token>/: a link to /<token> would open outside the app
+    script = (STATIC / "app.js").read_text(encoding="utf-8")
+    calls = re.findall(r"(?<!function )\blink\(([^)]*)\)", script)
+    assert calls and all(re.match(r'["`]/', call) for call in calls), calls
