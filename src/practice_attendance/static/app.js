@@ -525,7 +525,7 @@ function renderPractice(root, data, reload) {
   const msg = h("div", { class: "msg", role: "status", hidden: true });
   const save = h(
     "button",
-    { class: "btn primary big", disabled: readOnly || !practice.open },
+    { class: "big", disabled: readOnly || !practice.open },
     t("save"),
   );
 
@@ -629,7 +629,7 @@ function renderPractice(root, data, reload) {
     });
     edit = h(
       "button",
-      { class: "btn", onclick: () => dlg.showModal() },
+      { class: "outline secondary", onclick: () => dlg.showModal() },
       t("edit"),
     );
   }
@@ -666,7 +666,7 @@ function renderPractice(root, data, reload) {
         h(
           "button",
           {
-            class: "btn",
+            class: "secondary",
             disabled: readOnly,
             onclick: () => setAll("present"),
           },
@@ -674,7 +674,11 @@ function renderPractice(root, data, reload) {
         ),
         h(
           "button",
-          { class: "btn", disabled: readOnly, onclick: () => setAll("absent") },
+          {
+            class: "secondary",
+            disabled: readOnly,
+            onclick: () => setAll("absent"),
+          },
           t("reset"),
         ),
       ),
@@ -934,7 +938,7 @@ function renderLinks(root, data) {
       value: url,
       "aria-label": p.name,
     });
-    const btn = h("button", { class: "btn" }, t("copy"));
+    const btn = h("button", { class: "outline secondary" }, t("copy"));
     btn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(url);
