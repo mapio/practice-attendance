@@ -7,8 +7,9 @@ repos:
         entry: uv run --frozen mdformat --wrap 80 --number
         language: system
         types: [markdown]
-        # memory notes use [[wiki links]], which mdformat escapes
-        exclude: ^\.claude/memory/
+        # memory notes use [[wiki links]], which mdformat escapes; vendored files
+        # are copied as their authors wrote them
+        exclude: ^(\.claude/memory/|src/practice_attendance/static/vendor/)
       - id: ruff-check
         name: ruff check
         entry: uv run --frozen ruff check --fix
@@ -30,6 +31,7 @@ repos:
         language: node
         additional_dependencies: [prettier@3.9.10]
         types_or: [html, css, javascript]
+        exclude: ^src/practice_attendance/static/vendor/
       # look like the keyboard's "-" but are not
       - id: keyboard-dashes
         name: no U+2013 EN DASH or U+2212 MINUS SIGN
