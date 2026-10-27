@@ -22,7 +22,7 @@
   max-width: 40rem;
 }
 
-/* the team's name and the three links, as in the other pages' header */
+/* the three links, the header of the staff pages */
 #top {
   display: flex;
   justify-content: space-between;

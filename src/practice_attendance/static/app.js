@@ -207,7 +207,7 @@ function errorText(e) {
 
 // ---- shared parts of a page
 
-function frame(team, current) {
+function frame(current) {
   const nav = h(
     "nav",
     {},
@@ -233,9 +233,7 @@ function frame(team, current) {
       t("nav_links"),
     ),
   );
-  document
-    .getElementById("top")
-    .replaceChildren(h("strong", {}, team.name), nav);
+  document.getElementById("top").replaceChildren(nav);
 }
 
 function showError(root, e, retry) {
@@ -500,7 +498,7 @@ function renderList(root, data) {
 async function refresh() {
   const data = await api("GET", "");
   renderList(document.getElementById("app"), data);
-  frame(data.team, "list");
+  frame("list");
 }
 
 async function listPage() {
@@ -512,7 +510,7 @@ async function listPage() {
       await loadStrings(data.team.lang);
       applyStaticStrings();
       TZ = data.team.timezone;
-      frame(data.team, "list");
+      frame("list");
       return data;
     },
     (data) => renderList(root, data),
@@ -711,7 +709,7 @@ async function practicePage() {
     await loadStrings(data.team.lang);
     applyStaticStrings();
     TZ = data.team.timezone;
-    frame(data.team, "list");
+    frame("list");
     return data;
   };
   const go = () =>
@@ -764,7 +762,7 @@ async function statsPage() {
     await loadStrings(info.team.lang);
     applyStaticStrings();
     TZ = info.team.timezone;
-    frame(info.team, "stats");
+    frame("stats");
     first.season = info.team.season;
   } catch (e) {
     await loadStrings(null);
@@ -948,9 +946,7 @@ async function athletePage() {
       await loadStrings(record.team.lang);
       applyStaticStrings();
       TZ = record.team.timezone;
-      document
-        .getElementById("top")
-        .replaceChildren(h("strong", {}, record.team.name));
+      document.getElementById("top").remove();
       return record;
     },
     (record) => renderAthlete(root, record),
@@ -1016,7 +1012,7 @@ async function linksPage() {
       await loadStrings(data.team.lang);
       applyStaticStrings();
       TZ = data.team.timezone;
-      frame(data.team, "links");
+      frame("links");
       return data;
     },
     (data) => renderLinks(root, data),
