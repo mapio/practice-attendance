@@ -501,3 +501,30 @@ article.next .msg.ok {
 .pair input {
   min-width: 0;
 }
+
+/* icon-only buttons: the word is their label and their tooltip */
+
+button.icon {
+  width: auto;
+  min-width: 3rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  flex: 0 0 auto;
+}
+
+button.icon i {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+button.icon[aria-busy="true"] i {
+  display: none;
+}
+
+.savebar button.icon {
+  width: 100%;
+}
+
+.savebar button.icon i {
+  font-size: 1.8rem;
+}

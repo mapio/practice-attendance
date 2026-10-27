@@ -40,6 +40,16 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
+// A button with an icon only: its word is the accessible name and the tooltip.
+function iconButton(attrs, name, label) {
+  const cls = `${attrs.class || ""} icon`.trim();
+  return h(
+    "button",
+    { ...attrs, class: cls, "aria-label": label, title: label },
+    h("i", { class: `bi bi-${name}`, "aria-hidden": "true" }),
+  );
+}
+
 function lookup(key) {
   return (I18N[LANG] || {})[key] ?? (I18N.en || {})[key];
 }
@@ -257,16 +267,20 @@ function flash(el, kind, text) {
   el.hidden = !text;
 }
 
-// Disables a button and shows the busy label while fn runs.
+// Disables a button and shows it busy while fn runs: the busy label, or a
+// spinner on an icon button.
 async function busy(btn, label, fn) {
+  const icon = btn.classList.contains("icon");
   const old = btn.textContent;
   btn.disabled = true;
-  btn.textContent = label;
+  if (icon) btn.setAttribute("aria-busy", "true");
+  else btn.textContent = label;
   try {
     return await fn();
   } finally {
     btn.disabled = false;
-    btn.textContent = old;
+    if (icon) btn.removeAttribute("aria-busy");
+    else btn.textContent = old;
   }
 }
 
@@ -415,7 +429,7 @@ function renderList(root, data) {
   const upcoming = data.practices.filter((p) => new Date(p.end) >= now);
   const past = data.practices.filter((p) => new Date(p.end) < now).reverse();
   const status = h("div", { class: "msg", role: "status", hidden: true });
-  const importBtn = h("button", { class: "btn" }, t("import"));
+  const importBtn = iconButton({ class: "btn" }, "calendar-check", t("import"));
   importBtn.addEventListener("click", () =>
     busy(importBtn, t("importing"), async () => {
       try {
@@ -455,9 +469,9 @@ function renderList(root, data) {
       "div",
       { class: "toolbar" },
       importBtn,
-      h(
-        "button",
+      iconButton(
         { class: "btn", onclick: () => dlg.showModal() },
+        "plus-lg",
         t("add_practice"),
       ),
     ),
@@ -523,9 +537,9 @@ function renderPractice(root, data, reload) {
   const count = h("span", { class: "count", "aria-live": "polite" });
   const rows = new Map();
   const msg = h("div", { class: "msg", role: "status", hidden: true });
-  const save = h(
-    "button",
+  const save = iconButton(
     { class: "big", disabled: readOnly || !practice.open },
+    "check-lg",
     t("save"),
   );
 
@@ -948,20 +962,30 @@ async function athletePage() {
 function renderLinks(root, data) {
   const msg = h("div", { class: "msg warn", role: "status", hidden: true });
   const rows = data.players.map((p) => {
-    const url = `${location.origin}/${p.token}`;
+    const url = `${location.origin}/${p.token}/`;
     const field = h("input", {
       class: "url",
       readonly: true,
       value: url,
       "aria-label": p.name,
     });
-    const btn = h("button", { class: "outline secondary" }, t("copy"));
+    const btn = iconButton(
+      { class: "outline secondary" },
+      "clipboard",
+      t("copy"),
+    );
+    const mark = (done) => {
+      const label = t(done ? "copied" : "copy");
+      btn.firstChild.className = `bi bi-${done ? "check2" : "clipboard"}`;
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+    };
     btn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(url);
         flash(msg, "warn", "");
-        btn.textContent = t("copied");
-        setTimeout(() => (btn.textContent = t("copy")), 1500);
+        mark(true);
+        setTimeout(() => mark(false), 1500);
       } catch {
         field.focus();
         field.select();
