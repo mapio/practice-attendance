@@ -1017,7 +1017,7 @@ async function installPage() {
         h("li", {}, t("install_iphone_1")),
         h("li", {}, t("install_iphone_2")),
       ),
-      h("p", { class: "muted" }, t("install_note")),
+      h("p", {}, h("small", {}, t("install_note"))),
       h(
         "p",
         {},

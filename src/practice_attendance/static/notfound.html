@@ -5,10 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>Link non valido</title>
-    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/vendor/pico/pico.min.css" />
+    <style>
+      main.container {
+        max-width: 36rem;
+        padding-block: 1.5rem;
+      }
+      h1 {
+        font-size: 1.6rem;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin-top: 1.5rem;
+      }
+      #foot {
+        max-width: 36rem;
+        margin: 0 auto;
+        padding: 0 var(--pico-spacing, 1rem);
+        font-size: 0.875rem;
+      }
+      li {
+        margin-bottom: 0.5rem;
+      }
+    </style>
   </head>
   <body data-page="notfound" data-title="nf_title">
-    <main id="app">
+    <main id="app" class="container">
       <h1 data-i18n="nf_title">Questo link non funziona</h1>
       <p data-i18n="nf_text">
         Il link è sbagliato o non è più valido. Chiedi il link giusto a chi
