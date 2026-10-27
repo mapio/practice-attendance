@@ -33,7 +33,7 @@ APP_NAME, APP_SHORT_NAME = "PracticeAttendance", "Attendance"
 # an operator's own icons, beside the team file, win over the neutral ones
 ICONS = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
 PNG = {"type": "image/png"}
-THEME_COLOR = "#f6f7f9"  # the pages' background, see app.css
+THEME_COLOR = "#ffffff"  # the pages' light background, Pico's
 
 
 class RevalidatedFiles(StaticFiles):

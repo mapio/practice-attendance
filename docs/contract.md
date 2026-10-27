@@ -202,8 +202,8 @@ token and an unknown practice give the same `404`, so nothing can be probed.
 
 ### Pages
 
-Static HTML in `src/practice_attendance/static/`, with `app.css`, `app.js` and
-`i18n.json`; the page reads the token from its URL.
+Static HTML in `src/practice_attendance/static/`, with Pico (`vendor/pico/`),
+`style.css`, `app.js` and `i18n.json`; the page reads the token from its URL.
 
 - `/`: `404`, `notfound.html`, the page of the link that does not work.
 - `/<tok>` and `/<tok>/`: `list.html`, the list of practices, for the staff

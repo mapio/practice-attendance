@@ -14,8 +14,8 @@ if (!["notfound", "install"].includes(document.body.dataset.page)) {
     h("link", { rel: "manifest", href: `/${TOKEN}/manifest.webmanifest` }),
     h("link", { rel: "apple-touch-icon", href: "/icons/icon-192.png" }),
     meta("apple-mobile-web-app-title", "Attendance"),
-    meta("theme-color", "#f6f7f9", "(prefers-color-scheme: light)"),
-    meta("theme-color", "#12151c", "(prefers-color-scheme: dark)"),
+    meta("theme-color", "#ffffff", "(prefers-color-scheme: light)"),
+    meta("theme-color", "#13171f", "(prefers-color-scheme: dark)"),
   );
 }
 

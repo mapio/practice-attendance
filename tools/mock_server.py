@@ -149,6 +149,7 @@ def detail(p: dict) -> dict:
         "practice": public(p),
         "roster": ROSTER,
         "attendance": p["attendance"],
+        "announced": [],
     }
 
 
