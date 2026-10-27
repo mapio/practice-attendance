@@ -206,8 +206,29 @@ Static HTML in `src/practice_attendance/static/`, with `app.css`, `app.js` and
 `i18n.json`; the page reads the token from its URL.
 
 - `/`: `404`, `notfound.html`, the page of the link that does not work.
-- `/<tok>`: `list.html`, the list of practices, for the staff token;
-  `athlete.html`, the record of a player (see *Athlete record*), for a player's.
+- `/<tok>` and `/<tok>/`: `list.html`, the list of practices, for the staff
+  token; `athlete.html`, the record of a player (see *Athlete record*), for a
+  player's. The directory form is the scope and start of the installed app.
+- `/<tok>/manifest.webmanifest`: the web manifest of that token's page, for the
+  staff token and for each player's: `application/manifest+json`, name
+  `PracticeAttendance` and short name `Attendance` for everyone,
+  `display: standalone`, and `id`, `start_url` and `scope` all `/<tok>/`; icons
+  `/icons/icon-192.png`, `/icons/icon-512.png` and
+  `/icons/icon-maskable-512.png` (maskable). An unknown token gives the usual
+  `404` and counts against the limit on unknown tokens. Every page with a token
+  links it, and carries `theme-color`, `apple-touch-icon` and
+  `apple-mobile-web-app-title` for Safari, which ignores the manifest; the error
+  page and `/install` do not. There is no service worker and nothing is stored
+  on the device.
+- `/icons/<name>`: one of `icon-192.png`, `icon-512.png`,
+  `icon-maskable-512.png` (any other name is `404`): the file of that name
+  beside the team file if it is there, else the neutral icon of `static/icons/`
+  (made by `scripts/make-icons` from the SVGs there). No token, not counted by
+  the limit.
+- `/install`: `install.html`, how to add the app to the home screen (Android
+  Chrome, iPhone Safari), in Italian or, with `?lang=en`, English; no token, not
+  counted by the limit, no manifest. Every other page, the error page included,
+  links it from its foot.
 - `/<tok>/<p>`: `practice.html`, the screen of one practice, where the staff
   ticks who is present.
 - `/<tok>/stats`: `stats.html`, the statistics.

@@ -28,6 +28,12 @@ UNKNOWN_TOKEN_WINDOW = 60  # seconds
 # the pages and scripts change with the code: keep a copy but revalidate it
 NO_CACHE = {"Cache-Control": "no-cache"}
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# the home-screen app: one name for everyone (the phone never renames it)
+APP_NAME, APP_SHORT_NAME = "PracticeAttendance", "Attendance"
+# an operator's own icons, beside the team file, win over the neutral ones
+ICONS = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
+PNG = {"type": "image/png"}
+THEME_COLOR = "#f6f7f9"  # the pages' background, see app.css
 
 
 class RevalidatedFiles(StaticFiles):
@@ -206,6 +212,17 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
             raise not_found()
         return FileResponse(path, headers=NO_CACHE)
 
+    @app.get("/install")
+    def install():
+        return page("install.html")
+
+    @app.get("/icons/{name}")
+    def icons(name: str):
+        if name not in ICONS:
+            raise not_found()
+        own = team_path.with_name(name)
+        return FileResponse(own if own.is_file() else static / "icons" / name)
+
     # API
 
     @app.get("/api/{tok}")
@@ -332,8 +349,37 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     # pages
 
     @app.get("/{tok}")
+    @app.get("/{tok}/")  # the installed app's scope and start: a directory
     def page_list(who: Caller):
         return page("list.html" if who[1] is None else "athlete.html")
+
+    # before `/{tok}/{p}`, which would take the name for a practice
+    @app.get("/{tok}/manifest.webmanifest")
+    def manifest(tok: str, who: Caller):
+        start = f"/{tok}/"
+        body = {
+            "id": start,
+            "name": APP_NAME,
+            "short_name": APP_SHORT_NAME,
+            "display": "standalone",
+            "start_url": start,
+            "scope": start,
+            "theme_color": THEME_COLOR,
+            "background_color": THEME_COLOR,
+            "icons": [
+                {"src": "/icons/icon-192.png", "sizes": "192x192", **PNG},
+                {"src": "/icons/icon-512.png", "sizes": "512x512", **PNG},
+                {
+                    "src": "/icons/icon-maskable-512.png",
+                    "sizes": "512x512",
+                    "purpose": "maskable",
+                    **PNG,
+                },
+            ],
+        }
+        return JSONResponse(
+            body, media_type="application/manifest+json", headers=NO_CACHE
+        )
 
     @app.get("/{tok}/links")
     def page_links(team: Staff):

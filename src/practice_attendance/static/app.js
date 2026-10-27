@@ -5,6 +5,20 @@ const TOKEN = location.pathname.split("/")[1] || "";
 const PARAMS = new URLSearchParams(location.search);
 const TIMEOUT_MS = 20000;
 
+// The manifest is the token's own: the pages that have a token link it, the
+// error page, where the token may be wrong, and the install page do not.
+// Safari ignores the manifest, so the page says the same for itself.
+if (!["notfound", "install"].includes(document.body.dataset.page)) {
+  const meta = (name, content, media) => h("meta", { name, content, media });
+  document.head.append(
+    h("link", { rel: "manifest", href: `/${TOKEN}/manifest.webmanifest` }),
+    h("link", { rel: "apple-touch-icon", href: "/icons/icon-192.png" }),
+    meta("apple-mobile-web-app-title", "Attendance"),
+    meta("theme-color", "#f6f7f9", "(prefers-color-scheme: light)"),
+    meta("theme-color", "#12151c", "(prefers-color-scheme: dark)"),
+  );
+}
+
 let I18N = {};
 let LANG = "it";
 let TZ = "Europe/Rome";
@@ -55,6 +69,26 @@ function applyStaticStrings() {
     el.textContent = t(el.dataset.i18n);
   }
   document.title = t(document.body.dataset.title || "app_title");
+  if (
+    document.body.dataset.page !== "install" &&
+    !document.getElementById("foot")
+  ) {
+    const lang = PARAMS.get("lang");
+    document.body.append(
+      h(
+        "p",
+        { id: "foot", class: "muted small foot" },
+        h(
+          "a",
+          {
+            href:
+              "/install" + (lang ? `?lang=${encodeURIComponent(lang)}` : ""),
+          },
+          t("install_link"),
+        ),
+      ),
+    );
+  }
 }
 
 // ---- dates, in the team's timezone
@@ -951,6 +985,43 @@ async function notFoundPage() {
   applyStaticStrings();
 }
 
+// ---- install page: the same for everyone, so no token
+
+async function installPage() {
+  try {
+    await loadStrings(null);
+  } catch {
+    // no strings: the keys show
+  }
+  applyStaticStrings();
+  const other = LANG === "it" ? "en" : "it";
+  document
+    .getElementById("app")
+    .replaceChildren(
+      h("h1", {}, t("install_title")),
+      h("h2", {}, t("install_android")),
+      h(
+        "ol",
+        {},
+        h("li", {}, t("install_android_1")),
+        h("li", {}, t("install_android_2")),
+      ),
+      h("h2", {}, t("install_iphone")),
+      h(
+        "ol",
+        {},
+        h("li", {}, t("install_iphone_1")),
+        h("li", {}, t("install_iphone_2")),
+      ),
+      h("p", { class: "muted" }, t("install_note")),
+      h(
+        "p",
+        {},
+        h("a", { href: `/install?lang=${other}` }, t("install_other_lang")),
+      ),
+    );
+}
+
 // ---- start
 
 const PAGES = {
@@ -960,5 +1031,6 @@ const PAGES = {
   athlete: athletePage,
   links: linksPage,
   notfound: notFoundPage,
+  install: installPage,
 };
 PAGES[document.body.dataset.page]?.();

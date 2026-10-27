@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Renders the neutral icons from the SVGs beside them; needs inkscape.
+# The maskable one has its own SVG: full-bleed colour, art inside the safe zone.
+set -euo pipefail
+dir="$(dirname "$0")/../src/practice_attendance/static/icons"
+for size in 192 512; do
+  inkscape "$dir/icon.svg" --export-type=png --export-width="$size" \
+    --export-filename="$dir/icon-$size.png"
+done
+inkscape "$dir/icon-maskable.svg" --export-type=png --export-width=512 \
+  --export-filename="$dir/icon-maskable-512.png"

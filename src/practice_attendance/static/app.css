@@ -499,3 +499,9 @@ dialog::backdrop {
 [hidden] {
   display: none !important;
 }
+
+.foot {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0 1rem 1.5rem;
+}
