@@ -212,3 +212,87 @@ dialog article h2 {
   margin: 0 auto;
   padding: 0 var(--pico-spacing) 1.5rem;
 }
+
+/* statistics and athlete pages */
+
+/* the range choice: the chosen button filled, the others outlined */
+#controls .toolbar {
+  margin-bottom: 1rem;
+}
+
+#controls label {
+  margin-bottom: 0.75rem;
+}
+
+.stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stat {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 7rem) minmax(0, 1fr) 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.stat .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the track is outlined so it shows on both backgrounds */
+.bar {
+  height: 0.9rem;
+  background: var(--pico-form-element-background-color);
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+
+.summary {
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.summary + .bar {
+  margin-bottom: 1rem;
+}
+
+/* the next practice, with the notice button */
+article.next {
+  margin: 1rem 0;
+}
+
+article.next h2 {
+  margin-top: 0;
+}
+
+article.next button {
+  margin-bottom: 0;
+}
+
+article.next .msg.ok {
+  margin-top: 0;
+}
+
+/* two date fields side by side must not push the page wider than the phone */
+.pair > label {
+  min-width: 0;
+}
+
+.pair input {
+  min-width: 0;
+}

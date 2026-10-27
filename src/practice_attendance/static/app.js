@@ -784,13 +784,17 @@ async function statsPage() {
     monthBox.hidden = mode !== "month";
     custom.hidden = mode !== "custom";
     for (const b of controls.querySelectorAll("[data-mode]"))
-      b.setAttribute("aria-pressed", b.dataset.mode === mode);
+      setPressed(b, b.dataset.mode === mode);
+  };
+  // The chosen range is the filled button, the others are outlined.
+  const setPressed = (b, on) => {
+    b.setAttribute("aria-pressed", on);
+    b.classList.toggle("outline", !on);
   };
   const tab = (m, label) =>
     h(
       "button",
       {
-        class: "btn",
         type: "button",
         "data-mode": m,
         onclick: () => {
@@ -828,7 +832,7 @@ function nextPractice(next, show) {
     const btn = h(
       "button",
       {
-        class: `btn${method === "PUT" ? " primary" : ""}`,
+        class: method === "PUT" ? "" : "secondary",
         onclick: () =>
           busy(btn, t("saving"), async () => {
             try {
@@ -844,7 +848,7 @@ function nextPractice(next, show) {
   };
   const opens = `${fmtDay(next.notice_opens_at)} ${fmtTime(next.notice_opens_at)}`;
   return h(
-    "section",
+    "article",
     { class: "next" },
     h("h2", {}, t("next_practice")),
     h(
@@ -883,7 +887,8 @@ function renderAthlete(root, record) {
       ),
     ),
   );
-  root.replaceChildren(
+  // replaceChildren would print a missing part as "null" or "0"
+  const blocks = [
     h("h1", {}, record.player.name),
     nextPractice(record.next, (r) => renderAthlete(root, r)),
     record.of
@@ -893,6 +898,17 @@ function renderAthlete(root, record) {
           t("athlete_summary", record.present, record.of, record.percent),
         )
       : h("p", { class: "muted" }, t("athlete_empty")),
+    record.of
+      ? h(
+          "div",
+          {
+            class: "bar",
+            role: "img",
+            "aria-label": `${record.present}/${record.of}`,
+          },
+          h("span", { style: `width:${record.percent}%` }),
+        )
+      : null,
     record.team_percent != null &&
       h("p", { class: "muted" }, t("athlete_team", record.team_percent)),
     rows.length && h("section", {}, h("h2", {}, t("athlete_practices")), rows),
@@ -901,7 +917,8 @@ function renderAthlete(root, record) {
       { class: "muted small" },
       h("a", { href: "/privacy" }, t("privacy")),
     ),
-  );
+  ];
+  root.replaceChildren(...blocks.filter(Boolean));
 }
 
 async function athletePage() {

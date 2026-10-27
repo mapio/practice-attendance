@@ -214,8 +214,89 @@ async def body(request: Request) -> dict:
     return b
 
 
+def athlete_id(tok: str) -> str | None:
+    """A player's token is "athl" and her id (athl1 is Giulia's)."""
+    i = tok.lower().removeprefix("athl")
+    return i if tok.lower().startswith("athl") and i in ROSTER else None
+
+
+def record(i: str) -> dict:
+    """The athlete record of contract.md, from the seeded practices."""
+    seen = []
+    for p in practices:
+        att = p["attendance"]
+        if p.get("cancelled") or att is None:
+            continue
+        seen.append(
+            {k: p[k] for k in ("start", "end", "location")} | {"status": att[i]}
+        )
+    seen.reverse()
+
+    def pct(a, b):
+        return (200 * a + b) // (2 * b) if b else None
+
+    taken = [p["attendance"] for p in practices if p["attendance"]]
+    mine = sum(s["status"] == "present" for s in seen)
+    every = sum(v == "present" for att in taken for v in att.values())
+    named = sum(len(att) for att in taken)
+    coming = next(
+        (
+            p
+            for p in practices
+            if not p.get("cancelled") and datetime.fromisoformat(p["start"]) > now()
+        ),
+        None,
+    )
+    nxt = None
+    if coming:
+        opens = datetime.fromisoformat(coming["start"]) - timedelta(hours=6)
+        nxt = {
+            "id": coming["id"],
+            "start": coming["start"],
+            "end": coming["end"],
+            "location": coming["location"],
+            "notice_opens_at": iso(opens),
+            "notice_open": opts.open_always or now() >= opens,
+            "announced": i in coming.get("absences", {}),
+        }
+    return {
+        "team": TEAM,
+        "player": {"id": i, "name": ROSTER[i]},
+        "present": mine,
+        "of": len(seen),
+        "percent": pct(mine, len(seen)),
+        "team_percent": pct(every, named),
+        "practices": seen,
+        "next": nxt,
+    }
+
+
+@app.put("/api/{tok}/{p}/absence")
+@app.delete("/api/{tok}/{p}/absence")
+def api_absence(tok: str, p: str, request: Request):
+    i = athlete_id(tok)
+    if i is None:
+        raise Err(404, "not_found", "unknown link")
+    pr = find(p)
+    start = datetime.fromisoformat(pr["start"])
+    if pr.get("cancelled"):
+        raise Err(409, "cancelled", "the practice is cancelled")
+    if not opts.open_always and now() < start - timedelta(hours=6):
+        raise Err(409, "notice_not_open_yet", "not open yet")
+    if now() >= start:
+        raise Err(409, "notice_closed", "closed")
+    absences = pr.setdefault("absences", {})
+    if request.method == "PUT":
+        absences.setdefault(i, iso(now()))
+    else:
+        absences.pop(i, None)
+    return record(i)
+
+
 @app.get("/api/{tok}")
 def api_list(tok: str):
+    if (i := athlete_id(tok)) is not None:
+        return record(i)
     check(tok)
     return {"team": TEAM, "practices": listing(), "imported_at": state["imported_at"]}
 
@@ -330,6 +411,8 @@ def root():
 
 @app.get("/{tok}")
 def page_list(tok: str):
+    if athlete_id(tok) is not None:
+        return FileResponse(STATIC / "athlete.html")
     check(tok)
     return FileResponse(STATIC / "list.html")
 
