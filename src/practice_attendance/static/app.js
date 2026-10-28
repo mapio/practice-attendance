@@ -50,6 +50,10 @@ function iconButton(attrs, name, label) {
   );
 }
 
+// The word of a state agrees with its number: "1 giustificata", "2 giustificate".
+const stateWord = (n, state) => t(`n_${state}_${n === 1 ? "one" : "many"}`);
+const counted = (n, state) => `${n} ${stateWord(n, state)}`;
+
 function lookup(key) {
   return (I18N[LANG] || {})[key] ?? (I18N.en || {})[key];
 }
@@ -379,19 +383,28 @@ function practiceDialog(practice, { onSave, onDelete }) {
 
 // ---- list page
 
+// A pill for each state, in the colours of the practice rows; present is always
+// there, the others only when somebody is in them.
+function statePills(p) {
+  const excused = p.excused || 0;
+  const absent = p.of - p.present - excused;
+  const pill = (cls, n, label) =>
+    h("span", { class: `pill ${cls}`, title: label, "aria-label": label }, n);
+  return h(
+    "span",
+    { class: "pills" },
+    pill("p", p.present, counted(p.present, "present")),
+    excused > 0 && pill("g", excused, counted(excused, "excused")),
+    absent > 0 && pill("a", absent, counted(absent, "absent")),
+  );
+}
+
 function practiceCard(p, now) {
   const upcoming = new Date(p.end) >= now;
   let state;
   if (p.cancelled)
     state = h("span", { class: "tag cancelled" }, t("cancelled"));
-  else if (p.taken)
-    state = h(
-      "span",
-      { class: "tag taken" },
-      `${p.present}/${p.of}`,
-      p.excused > 0 &&
-        h("small", { class: "excused" }, t("count_short", p.excused)),
-    );
+  else if (p.taken) state = statePills(p);
   else if (!upcoming)
     state = h("span", { class: "tag missing" }, t("not_taken"));
   else if (!p.open)
@@ -542,7 +555,7 @@ function renderPractice(root, data, reload) {
   }
   let dirty = false;
   const readOnly = practice.cancelled;
-  const count = h("span", { class: "count", "aria-live": "polite" });
+  const count = h("div", { class: "counts", "aria-live": "polite" });
   const rows = new Map();
   const msg = h("div", { class: "msg", role: "status", hidden: true });
   const save = iconButton(
@@ -555,14 +568,18 @@ function renderPractice(root, data, reload) {
     const named = Object.keys(att);
     const n = (s) => named.filter((id) => att[id] === s).length;
     count.replaceChildren(
-      h("span", { class: "big" }, `${n("present")}/${named.length}`),
       ...[
-        t("present_label"),
-        n("excused") > 0 && t("count_excused", n("excused")),
-        n("absent") > 0 && t("count_absent", n("absent")),
-      ]
-        .filter(Boolean)
-        .flatMap((s, k) => [k ? " · " : " ", h("span", { class: "nw" }, s)]),
+        ["present", "p"],
+        ["excused", "g"],
+        ["absent", "a"],
+      ].map(([state, cls]) =>
+        h(
+          "span",
+          { class: `cpill ${cls}${n(state) ? "" : " zero"}` },
+          h("b", {}, n(state)),
+          h("span", {}, stateWord(n(state), state)),
+        ),
+      ),
     );
     for (const [id, row] of rows) {
       const word = att[id] ? t(att[id]) : t("not_expected");
@@ -758,7 +775,7 @@ function renderStats(root, stats) {
         { class: "num" },
         `${p.present}/${p.of}`,
         p.excused > 0 &&
-          h("small", { class: "excused" }, t("count_excused", p.excused)),
+          h("small", { class: "excused" }, counted(p.excused, "excused")),
       ),
     );
   });
@@ -936,7 +953,7 @@ function renderAthlete(root, record) {
             h(
               "small",
               { class: "excused" },
-              t("count_excused", record.excused),
+              counted(record.excused, "excused"),
             ),
         )
       : h("p", { class: "muted" }, t("athlete_empty")),
@@ -985,12 +1002,19 @@ function renderLinks(root, data) {
   const msg = h("div", { class: "msg warn", role: "status", hidden: true });
   const rows = data.players.map((p) => {
     const url = `${location.origin}/${p.token}/`;
-    const field = h("input", {
-      class: "url",
-      readonly: true,
-      value: url,
-      "aria-label": p.name,
-    });
+    const open = h(
+      "a",
+      {
+        role: "button",
+        class: "outline secondary icon",
+        href: url,
+        target: "_blank",
+        rel: "noopener",
+        "aria-label": t("open_as_athlete"),
+        title: t("open_as_athlete"),
+      },
+      h("i", { class: "bi bi-box-arrow-up-right", "aria-hidden": "true" }),
+    );
     const btn = iconButton(
       { class: "outline secondary" },
       "clipboard",
@@ -1009,16 +1033,14 @@ function renderLinks(root, data) {
         mark(true);
         setTimeout(() => mark(false), 1500);
       } catch {
-        field.focus();
-        field.select();
-        flash(msg, "warn", t("copy_manual"));
+        flash(msg, "warn", `${t("copy_manual")} ${url}`);
       }
     });
     return h(
       "li",
       { class: "linkrow" },
       h("span", { class: "name" }, p.name),
-      field,
+      open,
       btn,
     );
   });

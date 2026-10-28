@@ -271,25 +271,56 @@ small.excused {
 }
 
 .countbar {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
 
-.count {
-  color: var(--pico-muted-color);
+/* three equal pills, a big number over its word, in the colours of the rows */
+.counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.cpill {
+  display: grid;
+  justify-items: center;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid;
+  border-radius: 1.2rem;
   font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
-.count .nw {
-  white-space: nowrap;
+.cpill b {
+  font-size: 1.7rem;
+  font-weight: 800;
 }
 
-.count .big {
-  color: var(--pico-color);
-  font-size: 2.2rem;
-  font-weight: 700;
+.cpill span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.cpill.zero {
+  opacity: 0.35;
+}
+
+.cpill.p {
+  color: var(--ok);
+  background: var(--ok-bg);
+  border-color: var(--ok);
+}
+
+.cpill.g {
+  color: var(--ex);
+  background: var(--ex-bg);
+  border-color: var(--ex);
+}
+
+.cpill.a {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err);
 }
 
 .shortcuts {
@@ -442,7 +473,7 @@ button.player.unexpected {
 
 .linkrow {
   display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.75rem;
   margin: 0;
@@ -450,17 +481,10 @@ button.player.unexpected {
   border-bottom: 1px solid var(--pico-muted-border-color);
 }
 
-.linkrow input.url {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--pico-muted-color);
-  text-overflow: ellipsis;
-}
-
-.linkrow button {
+.linkrow button,
+.linkrow a.icon {
   margin: 0;
   width: auto;
-  min-width: 6.5rem;
 }
 
 /* statistics and athlete pages */
@@ -556,7 +580,8 @@ article.next .msg.ok {
 
 /* icon-only buttons: the word is their label and their tooltip */
 
-button.icon {
+button.icon,
+a.icon {
   width: auto;
   min-width: 3rem;
   padding-left: 1rem;
@@ -564,7 +589,7 @@ button.icon {
   flex: 0 0 auto;
 }
 
-button.icon i {
+.icon i {
   font-size: 1.25rem;
   line-height: 1;
 }
@@ -579,4 +604,41 @@ button.icon[aria-busy="true"] i {
 
 .savebar button.icon i {
   font-size: 1.8rem;
+}
+
+/* a pill for each state on a list card, in the colours of the practice rows */
+
+.pills {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid;
+  border-radius: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pill.p {
+  color: var(--ok);
+  background: var(--ok-bg);
+  border-color: var(--ok);
+}
+
+.pill.g {
+  color: var(--ex);
+  background: var(--ex-bg);
+  border-color: var(--ex);
+}
+
+.pill.a {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err);
 }
