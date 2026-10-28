@@ -112,8 +112,44 @@ def test_list_counts_and_delete_rules(client, api):
         json={"attendance": {"1": "present", "2": "absent", "3": "present"}},
     )
     p = client.get(api).json()["practices"][0]
-    assert (p["present"], p["of"]) == (2, 3)
+    assert (p["present"], p["excused"], p["of"]) == (2, 0, 3)
     error(client.delete(f"{api}/1"), 409, "has_attendance")
+
+
+def test_excused_is_a_third_value_and_is_counted_apart(client, api):
+    add(client, api, start="2026-10-23T10:00:00Z")
+    add(client, api, start="2026-10-24T10:00:00Z")
+    assert client.get(api).json()["practices"][0]["excused"] is None
+    body = {"attendance": {"1": "present", "2": "absent", "3": "excused"}}
+    r = client.put(f"{api}/1/attendance", json=body)
+    assert r.status_code == 200 and r.json()["attendance"] == body["attendance"]
+    assert client.get(f"{api}/1").json()["attendance"] == body["attendance"]
+    first, second = client.get(api).json()["practices"]
+    assert (first["present"], first["excused"], first["of"]) == (1, 1, 3)
+    assert (second["present"], second["excused"], second["of"]) == (None, None, None)
+    error(
+        client.put(f"{api}/1/attendance", json={"attendance": {"1": "Excused"}}),
+        422,
+        "invalid_value",
+    )
+    assert client.get(f"{api}/1").json()["attendance"] == body["attendance"]
+
+
+def test_stats_show_excused_apart_and_count_it_in_of(client, api):
+    add(client, api, start="2026-10-20T16:00:00Z")
+    add(client, api, start="2026-10-21T16:00:00Z")
+    client.put(
+        f"{api}/1/attendance",
+        json={"attendance": {"1": "present", "2": "excused", "3": "absent"}},
+    )
+    client.put(
+        f"{api}/2/attendance", json={"attendance": {"1": "present", "2": "excused"}}
+    )
+    by = {p["id"]: p for p in client.get(f"{api}/stats").json()["players"]}
+    assert by["1"] == {"id": "1", "name": "Anna", "present": 2, "excused": 0, "of": 2}
+    assert (by["2"]["present"], by["2"]["excused"], by["2"]["of"]) == (0, 2, 2)
+    assert (by["3"]["present"], by["3"]["excused"], by["3"]["of"]) == (0, 0, 1)
+    assert by["4"]["excused"] == 0
 
 
 def test_import_endpoint_and_imported_practices_are_protected(client, api):

@@ -67,6 +67,24 @@ def test_a_practice_that_does_not_name_her_is_not_in_her_record(record):
     assert (empty["of"], empty["percent"], empty["practices"]) == (0, None, [])
 
 
+def test_an_excused_practice_is_an_absence_in_the_ratio_and_shown_apart(
+    client, api, record
+):
+    client.put(
+        f"{api}/2/attendance",
+        json={"attendance": {"1": "excused", "2": "present"}},
+    )
+    body = record("1").json()
+    assert (body["present"], body["excused"], body["of"]) == (1, 1, 2)
+    assert body["percent"] == 50  # as if she had been absent
+    assert body["team_percent"] == 60  # 3 present of 5 named, as before
+    assert [(p["start"], p["status"]) for p in body["practices"]] == [
+        (B, "excused"),
+        (A, "present"),
+    ]
+    assert record("2").json()["excused"] == 0
+
+
 def test_the_page_and_the_record_answer_to_the_players_token_alone(
     client, record, salt, tok
 ):

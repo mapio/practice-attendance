@@ -14,7 +14,7 @@ from .errors import ApiError
 
 OPENS_BEFORE = timedelta(minutes=60)
 NOTICE_BEFORE = timedelta(hours=6)
-STATUSES = ("present", "absent")
+STATUSES = ("present", "absent", "excused")
 
 
 def fmt(t):

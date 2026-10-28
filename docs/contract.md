@@ -68,8 +68,9 @@ reused. A practice is:
 - `cancelled`: `true` when the calendar no longer holds the practice (see
   *Import*); absent otherwise.
 - `attendance`: `null` while nobody has taken it, else `{player-id: status}`,
-  `status` being `present` or `absent`. A player the map does not name was not
-  expected at that practice.
+  `status` being `present`, `absent` or `excused` (rightfully absent: a fixed
+  value, with no reason or text attached). A player the map does not name was
+  not expected at that practice.
 - `absences`: absent while nobody has announced; else `{player-id: instant}`,
   the UTC instant at which that player announced she will not come (see
   *Notice*). Information for the staff: never part of `attendance`, never
@@ -150,9 +151,11 @@ What the server returns.
 - `practice`:
   `{id, source, start, end, location, cancelled, taken, opens_at, open}`;
   `taken` is whether `attendance` is not `null`, `opens_at` a UTC instant and
-  `open` whether now is past it. In the list it also carries `present` and `of`,
-  the counts of its attendance (`null` if not taken), and `announced`, the
-  number of players who announced their absence.
+  `open` whether now is past it. In the list it also carries `present`,
+  `excused` and `of`, the counts of its attendance (`null` if not taken; `of`
+  counts every player the map names, excused ones included), and `announced`,
+  the number of players who announced their absence. The notice never sets
+  `excused`.
 - `roster`: `{id: name}`.
 - `attendance`: the practice's map, or `null`.
 - `announced`: the ids of the players who announced their absence, in the
@@ -164,29 +167,30 @@ For a range of local dates (`from`, `to`, inclusive, by the `start` of the
 practice in the team's timezone), the practices counted are those not cancelled;
 those taken count for the players they name.
 
-`{from, to, practices, not_taken, players: [{id, name, present, of}]}`:
+`{from, to, practices, not_taken, players: [{id, name, present, excused, of}]}`:
 `practices` the number of practices counted that were taken, `not_taken` the
 number of those in the range whose `start` has passed and that nobody has taken
-(so a gap in the record shows), `present` and `of` the practices of that player
-in which she is `present`, and in which she is named at all. `players` are in
-the roster's order.
+(so a gap in the record shows), `present`, `excused` and `of` the practices of
+that player in which she is `present`, in which she is `excused`, and in which
+she is named at all (excused ones included, so an excused practice counts as an
+absence in the ratio of `present` to `of`). `players` are in the roster's order.
 
 ### Athlete record
 
 What a player's page shows, over the practices of the season (by the local date
 of `start`) that are not cancelled, have been taken and name her:
 
-`{team, player, present, of, percent, team_percent, practices, next}`:
+`{team, player, present, excused, of, percent, team_percent, practices, next}`:
 
 - `player`: `{id, name}`, hers.
-- `present`, `of`: as in the statistics, over the season.
+- `present`, `excused`, `of`: as in the statistics, over the season.
 - `percent`: `present` over `of` as a whole number, halves rounded up; `null`
   when `of` is `0`.
 - `team_percent`: the same ratio over every player of the roster, hers included;
   `null` when no player is named. It is the only datum of the others that is
   returned: no other name, count or practice id ever is.
 - `practices`: `[{start, end, location, status}]`, newest first, `status` being
-  `present` or `absent`.
+  `present`, `absent` or `excused`.
 - `next`: the first practice, not cancelled, whose `start` has not come, as
   `{id, start, end, location, notice_opens_at, notice_open, announced}`
   (`notice_open` whether now is within *Notice*'s interval, `announced` whether
@@ -261,8 +265,8 @@ shorten further).
   replacing the whole map. `200`, the same body as the `GET`. `409 not_open_yet`
   before `opens_at`, `409 cancelled` for a cancelled practice,
   `422 unknown_player` for an id the roster lacks, `422 invalid_value` for a
-  status that is neither `present` nor `absent`. The last write wins; the
-  journal keeps what it replaced.
+  status that is none of `present`, `absent`, `excused`. The last write wins;
+  the journal keeps what it replaced.
 - `POST /api/<tok>/practices`: body `{start, end?, location?}` (`start` and
   `end` UTC instants; `end` one hour after `start` when missing); adds a
   practice of `manual` source. `201`, the practice. `422 invalid_value` if `end`

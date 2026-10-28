@@ -8,6 +8,7 @@ def compute(practices, team, first, last, now):
     """Over the practices whose local start date is in `first`..`last`."""
     taken = not_taken = 0
     present = dict.fromkeys(team.roster, 0)
+    excused = dict.fromkeys(team.roster, 0)
     named = dict.fromkeys(team.roster, 0)
     for p in practices:
         start = parse_instant(p["start"])
@@ -21,13 +22,20 @@ def compute(practices, team, first, last, now):
             if player in named:
                 named[player] += 1
                 present[player] += status == "present"
+                excused[player] += status == "excused"
     return {
         "from": first.isoformat(),
         "to": last.isoformat(),
         "practices": taken,
         "not_taken": not_taken,
         "players": [
-            {"id": i, "name": name, "present": present[i], "of": named[i]}
+            {
+                "id": i,
+                "name": name,
+                "present": present[i],
+                "excused": excused[i],
+                "of": named[i],
+            }
             for i, name in team.roster.items()
         ],
     }
@@ -77,6 +85,7 @@ def athlete(practices, team, player, now):
         "team": team.public(),
         "player": {"id": player, "name": mine["name"]},
         "present": mine["present"],
+        "excused": mine["excused"],
         "of": mine["of"],
         "percent": percent(mine["present"], mine["of"]),
         "team_percent": percent(everyone, named),

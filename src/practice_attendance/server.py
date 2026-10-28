@@ -168,6 +168,9 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
             out["present"] = (
                 None if taken is None else sum(s == "present" for s in taken.values())
             )
+            out["excused"] = (
+                None if taken is None else sum(s == "excused" for s in taken.values())
+            )
             out["of"] = None if taken is None else len(taken)
             out["announced"] = len(p.get("absences", {}))
         return out
