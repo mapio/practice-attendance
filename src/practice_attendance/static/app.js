@@ -525,8 +525,9 @@ async function listPage() {
 
 // ---- practice page
 
-// A tap on a row steps through the states in this order.
-const NEXT_STATE = { present: "absent", absent: "excused", excused: "present" };
+// A tap on a row steps through the states in this order; a fresh practice starts
+// everyone absent, so the first tap is present.
+const NEXT_STATE = { absent: "present", present: "excused", excused: "absent" };
 
 function renderPractice(root, data, reload) {
   const { practice, roster } = data;
