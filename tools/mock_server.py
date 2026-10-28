@@ -85,12 +85,22 @@ def add(source, start, end, location="", attendance=None, cancelled=False) -> di
 
 def seed() -> None:
     absent = [{"4"}, {"5"}, {"6", "7", "11"}, {"2", "9"}]
+    excused = [{"8"}, {"8"}, {"8", "3"}, set()]
     days = [(10, 13), (10, 15), (10, 20), (10, 22), (10, 27), (10, 29), (11, 3)]
     for k, (m, d) in enumerate(days):
         start = local(2026, m, d, 18, 0)
         att = None
         if k < len(absent):
-            att = {i: ("absent" if i in absent[k] else "present") for i in ROSTER}
+            att = {
+                i: (
+                    "absent"
+                    if i in absent[k]
+                    else "excused"
+                    if i in excused[k]
+                    else "present"
+                )
+                for i in ROSTER
+            }
         add(
             "calendar",
             start,
@@ -128,6 +138,9 @@ def public(p: dict, in_list=False) -> dict:
             None if att is None else sum(v == "present" for v in att.values())
         )
         out["of"] = None if att is None else len(att)
+        out["excused"] = (
+            None if att is None else sum(v == "excused" for v in att.values())
+        )
     return out
 
 
@@ -154,7 +167,7 @@ def detail(p: dict) -> dict:
 
 
 def stats(frm: date, to: date) -> dict:
-    out = {i: [0, 0] for i in ROSTER}
+    out = {i: [0, 0, 0] for i in ROSTER}
     taken = missed = 0
     for p in practices:
         if p.get("cancelled"):
@@ -169,13 +182,20 @@ def stats(frm: date, to: date) -> dict:
         for i, s in p["attendance"].items():
             out[i][1] += 1
             out[i][0] += s == "present"
+            out[i][2] += s == "excused"
     return {
         "from": frm.isoformat(),
         "to": to.isoformat(),
         "practices": taken,
         "not_taken": missed,
         "players": [
-            {"id": i, "name": n, "present": out[i][0], "of": out[i][1]}
+            {
+                "id": i,
+                "name": n,
+                "present": out[i][0],
+                "excused": out[i][2],
+                "of": out[i][1],
+            }
             for i, n in ROSTER.items()
         ],
     }
@@ -264,6 +284,7 @@ def record(i: str) -> dict:
         "team": TEAM,
         "player": {"id": i, "name": ROSTER[i]},
         "present": mine,
+        "excused": sum(s["status"] == "excused" for s in seen),
         "of": len(seen),
         "percent": pct(mine, len(seen)),
         "team_percent": pct(every, named),
@@ -365,7 +386,7 @@ async def api_put(tok: str, p: str, request: Request):
     for i, s in att.items():
         if i not in ROSTER:
             raise Err(422, "unknown_player", i)
-        if s not in ("present", "absent"):
+        if s not in ("present", "absent", "excused"):
             raise Err(422, "invalid_value", str(s))
     pr["attendance"] = att
     return detail(pr)

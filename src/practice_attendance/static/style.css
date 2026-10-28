@@ -6,6 +6,8 @@
   --err: #a4161a;
   --err-bg: #fde2e2;
   --warn-bg: #fff1cf;
+  --ex: #8a5a00;
+  --ex-bg: #fff1cf;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -15,6 +17,8 @@
     --err: #ff9a96;
     --err-bg: #4a1c1c;
     --warn-bg: #4a3a10;
+    --ex: #f0b955;
+    --ex-bg: #4a3a10;
   }
 }
 
@@ -202,6 +206,20 @@ dialog article h2 {
   border-color: var(--err);
 }
 
+.tag.excused {
+  background: var(--ex-bg);
+  color: var(--ex);
+  border-color: var(--ex);
+}
+
+small.excused {
+  margin-left: 0.5rem;
+  color: var(--ex);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .tag.todo {
   background: var(--warn-bg);
   color: var(--pico-color);
@@ -260,9 +278,18 @@ dialog article h2 {
 }
 
 .count {
+  color: var(--pico-muted-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.count .nw {
+  white-space: nowrap;
+}
+
+.count .big {
+  color: var(--pico-color);
   font-size: 2.2rem;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 .shortcuts {
@@ -284,13 +311,14 @@ dialog article h2 {
 /* the large rows: what staff read at a glance in a gym */
 button.player {
   display: grid;
-  grid-template-columns: 2rem 1fr auto;
+  grid-template-columns: 0.45rem 1fr auto;
   align-items: center;
   gap: 0.75rem;
   width: 100%;
   min-height: 3.5rem;
   margin: 0;
-  padding: 0 1rem;
+  padding: 0 1rem 0 0;
+  overflow: hidden;
   font-size: 1.15rem;
   text-align: left;
   /* Pico turns --pico-color into the inverse on a button */
@@ -308,11 +336,20 @@ button.player:focus {
   box-shadow: none;
 }
 
-button.player[aria-pressed="true"]:hover,
-button.player[aria-pressed="true"]:active,
-button.player[aria-pressed="true"]:focus {
+button.player[data-state="present"],
+button.player[data-state="present"]:hover,
+button.player[data-state="present"]:active,
+button.player[data-state="present"]:focus {
   background: var(--ok-bg);
   border-color: var(--ok);
+}
+
+button.player[data-state="excused"],
+button.player[data-state="excused"]:hover,
+button.player[data-state="excused"]:active,
+button.player[data-state="excused"]:focus {
+  background: var(--ex-bg);
+  border-color: var(--ex);
 }
 
 button.player:focus-visible {
@@ -320,37 +357,45 @@ button.player:focus-visible {
   outline-offset: 2px;
 }
 
-.player .check {
-  width: 1.6rem;
-  height: 1.6rem;
-  border: 2px solid var(--pico-muted-color);
-  border-radius: 0.4rem;
+/* the state is told by the stripe, the tint and the word */
+.player .stripe {
+  align-self: stretch;
+  margin-left: -2px;
+  background: var(--pico-muted-border-color);
+}
+
+.player .name {
+  padding-left: 0.25rem;
 }
 
 .player .state {
   color: var(--pico-muted-color);
   font-size: 0.95rem;
-}
-
-button.player[aria-pressed="true"] {
-  background: var(--ok-bg);
-  border-color: var(--ok);
-}
-
-.player[aria-pressed="true"] .check {
-  background: var(--ok);
-  border-color: var(--ok);
-  box-shadow: inset 0 0 0 0.25rem var(--ok-bg);
-}
-
-.player[aria-pressed="true"] .state {
-  color: var(--ok);
   font-weight: 600;
 }
 
-/* absent is told apart from present by the word, the empty box and the red */
-button.player[aria-pressed="false"]:not(.unexpected) .state {
+.player[data-state="present"] .stripe {
+  background: var(--ok);
+}
+
+.player[data-state="present"] .state {
+  color: var(--ok);
+}
+
+.player[data-state="absent"] .stripe {
+  background: var(--err);
+}
+
+.player[data-state="absent"] .state {
   color: var(--err);
+}
+
+.player[data-state="excused"] .stripe {
+  background: var(--ex);
+}
+
+.player[data-state="excused"] .state {
+  color: var(--ex);
 }
 
 button.player.unexpected {
@@ -437,13 +482,20 @@ button.player.unexpected {
 
 .stat {
   display: grid;
-  grid-template-columns: minmax(4.5rem, 7rem) minmax(0, 1fr) 3.5rem;
+  grid-template-columns: minmax(4.5rem, 7rem) minmax(0, 1fr) 5rem;
   align-items: center;
   gap: 0.75rem;
   min-height: 2.75rem;
   margin: 0;
   padding: 0;
   border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.stat .num small.excused {
+  display: block;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .stat .num {
