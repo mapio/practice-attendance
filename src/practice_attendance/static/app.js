@@ -385,7 +385,13 @@ function practiceCard(p, now) {
   if (p.cancelled)
     state = h("span", { class: "tag cancelled" }, t("cancelled"));
   else if (p.taken)
-    state = h("span", { class: "tag taken" }, `${p.present}/${p.of}`);
+    state = h(
+      "span",
+      { class: "tag taken" },
+      `${p.present}/${p.of}`,
+      p.excused > 0 &&
+        h("small", { class: "excused" }, t("count_short", p.excused)),
+    );
   else if (!upcoming)
     state = h("span", { class: "tag missing" }, t("not_taken"));
   else if (!p.open)
@@ -519,12 +525,15 @@ async function listPage() {
 
 // ---- practice page
 
+// A tap on a row steps through the states in this order.
+const NEXT_STATE = { present: "absent", absent: "excused", excused: "present" };
+
 function renderPractice(root, data, reload) {
   const { practice, roster } = data;
   TZ = data.team.timezone;
   const ids = Object.keys(roster);
   const taken = data.attendance !== null;
-  // id -> "present" | "absent"; missing: not expected at this practice.
+  // id -> "present" | "absent" | "excused"; missing: not expected here.
   const att = {};
   for (const id of ids) {
     if (!taken) att[id] = "absent";
@@ -543,17 +552,28 @@ function renderPractice(root, data, reload) {
 
   const update = () => {
     const named = Object.keys(att);
-    const present = named.filter((id) => att[id] === "present").length;
-    count.textContent = `${present}/${named.length}`;
+    const n = (s) => named.filter((id) => att[id] === s).length;
+    count.replaceChildren(
+      h("span", { class: "big" }, `${n("present")}/${named.length}`),
+      ...[
+        t("present_label"),
+        n("excused") > 0 && t("count_excused", n("excused")),
+        n("absent") > 0 && t("count_absent", n("absent")),
+      ]
+        .filter(Boolean)
+        .flatMap((s, k) => [k ? " · " : " ", h("span", { class: "nw" }, s)]),
+    );
     for (const [id, row] of rows) {
-      row.setAttribute("aria-pressed", att[id] === "present");
+      const word = att[id] ? t(att[id]) : t("not_expected");
       row.classList.toggle("unexpected", att[id] === undefined);
-      row.querySelector(".state").textContent =
-        att[id] === "present"
-          ? t("present")
-          : att[id] === "absent"
-            ? t("absent")
-            : t("not_expected");
+      if (att[id]) row.dataset.state = att[id];
+      else delete row.dataset.state;
+      row.querySelector(".state").textContent = word;
+      row.setAttribute(
+        "aria-label",
+        `${roster[id]}: ${word}` +
+          (data.announced.includes(id) ? `, ${t("announced_mark")}` : ""),
+      );
     }
   };
   const touch = () => {
@@ -574,11 +594,11 @@ function renderPractice(root, data, reload) {
         type: "button",
         disabled: readOnly,
         onclick: () => {
-          att[id] = att[id] === "present" ? "absent" : "present";
+          att[id] = NEXT_STATE[att[id]] ?? "present";
           touch();
         },
       },
-      h("span", { class: "check", "aria-hidden": "true" }),
+      h("span", { class: "stripe", "aria-hidden": "true" }),
       h(
         "span",
         { class: "name" },
@@ -666,12 +686,7 @@ function renderPractice(root, data, reload) {
     h(
       "div",
       { class: "sticky" },
-      h(
-        "div",
-        { class: "countbar" },
-        count,
-        h("span", { class: "muted" }, t("present_label")),
-      ),
+      h("div", { class: "countbar" }, count),
       h(
         "div",
         { class: "shortcuts" },
@@ -737,7 +752,13 @@ function renderStats(root, stats) {
         { class: "bar", role: "img", "aria-label": `${p.present}/${p.of}` },
         h("span", { style: `width:${pct}%` }),
       ),
-      h("span", { class: "num" }, `${p.present}/${p.of}`),
+      h(
+        "span",
+        { class: "num" },
+        `${p.present}/${p.of}`,
+        p.excused > 0 &&
+          h("small", { class: "excused" }, t("count_excused", p.excused)),
+      ),
     );
   });
   root.replaceChildren(
@@ -884,6 +905,8 @@ function nextPractice(next, show) {
   );
 }
 
+const STATUS_TAG = { present: "taken", absent: "missing", excused: "excused" };
+
 function renderAthlete(root, record) {
   const rows = record.practices.map((p) =>
     h(
@@ -896,11 +919,7 @@ function renderAthlete(root, record) {
         h("span", { class: "time" }, `${fmtTime(p.start)}-${fmtTime(p.end)}`),
       ),
       h("div", { class: "where" }, p.location),
-      h(
-        "span",
-        { class: `tag ${p.status === "present" ? "taken" : "missing"}` },
-        t(p.status),
-      ),
+      h("span", { class: `tag ${STATUS_TAG[p.status]}` }, t(p.status)),
     ),
   );
   // replaceChildren would print a missing part as "null" or "0"
@@ -912,6 +931,12 @@ function renderAthlete(root, record) {
           "p",
           { class: "summary" },
           t("athlete_summary", record.present, record.of, record.percent),
+          record.excused > 0 &&
+            h(
+              "small",
+              { class: "excused" },
+              t("count_excused", record.excused),
+            ),
         )
       : h("p", { class: "muted" }, t("athlete_empty")),
     record.of
