@@ -825,10 +825,13 @@ async function statsPage() {
   const to = h("input", { type: "date", value: season.to });
   const custom = h(
     "div",
-    { class: "pair" },
-    h("label", {}, t("field_from"), from),
-    h("label", {}, t("field_to"), to),
+    { class: "range" },
+    from,
+    h("span", { "aria-hidden": "true" }, "→"),
+    to,
   );
+  from.setAttribute("aria-label", t("range_from"));
+  to.setAttribute("aria-label", t("range_to"));
   let mode = "season";
 
   // A preset button fills the two dates, which can then be edited: editing
