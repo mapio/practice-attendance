@@ -832,7 +832,7 @@ async function statsPage() {
   let mode = "season";
 
   // A preset button fills the two dates, which can then be edited: editing
-  // them makes the range a custom one.
+  // them deselects every button.
   const presets = {
     season: () => [season.from, season.to],
     month: () => monthRange(today),
@@ -861,7 +861,7 @@ async function statsPage() {
         "data-mode": m,
         onclick: () => {
           mode = m;
-          if (presets[m]) [from.value, to.value] = presets[m]();
+          [from.value, to.value] = presets[m]();
           show();
           run();
         },
@@ -876,13 +876,12 @@ async function statsPage() {
       tab("season", t("range_season")),
       tab("month", t("range_month")),
       tab("week", t("range_week")),
-      tab("custom", t("range_custom")),
     ),
     custom,
   );
   for (const el of [from, to])
     el.addEventListener("change", () => {
-      mode = "custom";
+      mode = null;
       show();
       run();
     });
