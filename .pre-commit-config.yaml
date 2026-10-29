@@ -1,4 +1,4 @@
-# setup-formatting 2026-10-23: rules 1
+# setup-formatting 2026-10-29: rules 2
 repos:
   - repo: local
     hooks:
@@ -12,12 +12,12 @@ repos:
         exclude: ^(\.claude/memory/|src/practice_attendance/static/vendor/)
       - id: ruff-check
         name: ruff check
-        entry: uv run --frozen ruff check --fix
+        entry: uv run --frozen ruff check --fix --force-exclude
         language: system
         types_or: [python, jupyter]
       - id: ruff-format
         name: ruff format
-        entry: uv run --frozen ruff format
+        entry: uv run --frozen ruff format --force-exclude
         language: system
         types_or: [python, jupyter, markdown]
       - id: pretty-format-json
