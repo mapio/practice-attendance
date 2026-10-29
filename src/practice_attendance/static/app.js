@@ -752,10 +752,20 @@ async function practicePage() {
 
 // ---- stats page
 
-function monthRange(value) {
+function monthRange(day) {
+  const value = day.slice(0, 7);
   const [y, m] = value.split("-").map(Number);
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return [`${value}-01`, `${value}-${String(last).padStart(2, "0")}`];
+}
+
+// Monday to Sunday around the given day.
+function weekRange(day) {
+  const monday =
+    Date.parse(`${day}T00:00:00Z`) -
+    ((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7) * 864e5;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  return [iso(monday), iso(monday + 6 * 864e5)];
 }
 
 function renderStats(root, stats) {
@@ -813,31 +823,28 @@ async function statsPage() {
   const today = localDate(new Date().toISOString());
   const from = h("input", { type: "date", value: season.from });
   const to = h("input", { type: "date", value: season.to });
-  const month = h("input", { type: "month", value: today.slice(0, 7) });
   const custom = h(
     "div",
     { class: "pair" },
     h("label", {}, t("field_from"), from),
     h("label", {}, t("field_to"), to),
   );
-  const monthBox = h("label", {}, t("range_month"), month);
   let mode = "season";
 
-  const range = () =>
-    mode === "season"
-      ? [season.from, season.to]
-      : mode === "month"
-        ? monthRange(month.value || today.slice(0, 7))
-        : [from.value, to.value];
+  // A preset button fills the two dates, which can then be edited: editing
+  // them makes the range a custom one.
+  const presets = {
+    season: () => [season.from, season.to],
+    month: () => monthRange(today),
+    week: () => weekRange(today),
+  };
   const run = () =>
     guarded(
       result,
-      () => api("GET", `/stats?from=${range()[0]}&to=${range()[1]}`),
+      () => api("GET", `/stats?from=${from.value}&to=${to.value}`),
       (s) => renderStats(result, s),
     );
   const show = () => {
-    monthBox.hidden = mode !== "month";
-    custom.hidden = mode !== "custom";
     for (const b of controls.querySelectorAll("[data-mode]"))
       setPressed(b, b.dataset.mode === mode);
   };
@@ -854,6 +861,7 @@ async function statsPage() {
         "data-mode": m,
         onclick: () => {
           mode = m;
+          if (presets[m]) [from.value, to.value] = presets[m]();
           show();
           run();
         },
@@ -867,12 +875,17 @@ async function statsPage() {
       { class: "toolbar" },
       tab("season", t("range_season")),
       tab("month", t("range_month")),
+      tab("week", t("range_week")),
       tab("custom", t("range_custom")),
     ),
-    monthBox,
     custom,
   );
-  for (const el of [month, from, to]) el.addEventListener("change", run);
+  for (const el of [from, to])
+    el.addEventListener("change", () => {
+      mode = "custom";
+      show();
+      run();
+    });
   show();
   renderStats(result, first);
 }
