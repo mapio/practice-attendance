@@ -190,9 +190,9 @@ def test_import_without_calendar_and_with_unavailable_one(client, api, home):
     error(client.post(f"{api}/import"), 502, "calendar_unavailable")
     path.unlink()
     error(client.post(f"{api}/import"), 502, "calendar_unavailable")
-    team = json.loads((home / "team.json").read_text())
+    team = json.loads((home / "esempio.json").read_text())
     del team["calendar"]
-    (home / "team.json").write_text(json.dumps(team))
+    (home / "esempio.json").write_text(json.dumps(team))
     error(client.post(f"{api}/import"), 409, "no_calendar")
 
 

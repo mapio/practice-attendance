@@ -1,6 +1,6 @@
-"""The tokens of the staff and of each player: derived from the salt, never
-stored (docs/contract.md, *Tokens*), so the links survive a restart and die with
-a new salt."""
+"""The tokens of the staff and of each player of each team: derived from the
+salt and the team id, never stored (docs/contract.md, *Tokens*), so the links
+survive a restart and die with a new salt."""
 
 import hashlib
 from pathlib import Path
@@ -30,9 +30,9 @@ def _token(text):
     return "".join(reversed(digits))[:LENGTH]
 
 
-def staff_token(salt):
-    return _token(f"{salt}:staff")
+def staff_token(salt, team_id):
+    return _token(f"{salt}:{team_id}:staff")
 
 
-def player_token(salt, player):
-    return _token(f"{salt}:player:{player}")
+def player_token(salt, team_id, player):
+    return _token(f"{salt}:{team_id}:player:{player}")

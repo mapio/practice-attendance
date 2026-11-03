@@ -4,12 +4,20 @@ from datetime import timedelta
 import pytest
 
 from practice_attendance import __main__ as cli
-from practice_attendance import server
+from practice_attendance import server, tokens
 from practice_attendance.stats import percent
 from practice_attendance.team import ConfigError
-from practice_attendance.tokens import ALPHABET, player_token, staff_token
+from practice_attendance.tokens import ALPHABET
 
 A, B, C = (f"2026-10-{d}T18:00:00Z" for d in (20, 21, 22))  # the clock: 23rd, 12:00Z
+
+
+def staff_token(salt):
+    return tokens.staff_token(salt, "esempio")
+
+
+def player_token(salt, player):
+    return tokens.player_token(salt, "esempio", player)
 
 
 def error(response, status, code):
@@ -115,9 +123,9 @@ def test_a_players_token_opens_nothing_else_and_is_not_counted(client, record, s
 
 
 def test_a_roster_whose_tokens_collide_is_refused(home, tmp_path, pages, monkeypatch):
-    monkeypatch.setattr(server, "player_token", lambda salt, player: "aaaaaa")
-    with pytest.raises(ConfigError, match=r"\$\.roster\.2"):
-        server.create_app(home / "team.json", tmp_path / "data", static=pages)
+    monkeypatch.setattr(server, "player_token", lambda salt, team, player: "aaaaaa")
+    with pytest.raises(ConfigError, match=r"esempio: \$\.roster\.2"):
+        server.create_app(home, tmp_path / "data", static=pages)
 
 
 def test_percent_rounds_halves_up_and_has_none_without_practices():
@@ -126,17 +134,33 @@ def test_percent_rounds_halves_up_and_has_none_without_practices():
     assert percent(0, 0) is None
 
 
-def test_urls_prints_the_staff_link_and_with_players_each_players(home, salt, capsys):
-    team = str(home / "team.json")
-    assert cli.main(["urls", "--team", team, "--base", "https://x.test/"]) == 0
-    assert capsys.readouterr().out == f"https://x.test/{staff_token(salt)}/\n"
+def test_urls_prints_each_teams_staff_link_and_with_players_each_players(
+    home, salt, capsys
+):
+    teams = str(home)
+    assert cli.main(["urls", "--teams", teams, "--base", "https://x.test/"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "# esempio",
+        f"https://x.test/{staff_token(salt)}/",
+        "# prova",
+        f"https://x.test/{tokens.staff_token(salt, 'prova')}/",
+    ]
     assert (
-        cli.main(["urls", "--team", team, "--base", "https://x.test", "--players"]) == 0
+        cli.main(["urls", "--teams", teams, "--base", "https://x.test", "--players"])
+        == 0
     )
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0] == f"https://x.test/{staff_token(salt)}/"
-    assert lines[1] == f"Anna: https://x.test/{player_token(salt, '1')}/"
-    assert len(lines) == 1 + 12
+    assert lines[:3] == [
+        "# esempio",
+        f"https://x.test/{staff_token(salt)}/",
+        f"Anna: https://x.test/{player_token(salt, '1')}/",
+    ]
+    assert len(lines) == 2 + 12 + 2 + 6
+    assert lines[14] == "# prova"
+    assert (
+        lines[16]
+        == f"Agnese: https://x.test/{tokens.player_token(salt, 'prova', '1')}/"
+    )
 
 
 # the notice and the links
@@ -193,7 +217,7 @@ def test_announcing_twice_keeps_the_first_instant(client, api, salt, clock, home
     client.put(f"{mine}/1/absence")
     clock.t += timedelta(hours=2)
     client.put(f"{mine}/1/absence")
-    data = json.loads((home.parent / "data" / "practices.json").read_text())
+    data = json.loads((home.parent / "data" / "esempio" / "practices.json").read_text())
     assert data["practices"][0]["absences"] == {"1": "2026-10-23T12:00:00Z"}
 
 

@@ -67,8 +67,8 @@ def test_example_calendar_semantics(client, api):
 def test_import_adds_then_is_idempotent_byte_for_byte(client, api, tmp_path):
     first = run(client, api)
     assert first["added"] > 20 and first["updated"] == first["cancelled"] == 0
-    path = tmp_path / "data" / "practices.json"
-    journal = tmp_path / "data" / "journal.jsonl"
+    path = tmp_path / "data" / "esempio" / "practices.json"
+    journal = tmp_path / "data" / "esempio" / "journal.jsonl"
     before = (path.read_bytes(), journal.read_bytes())
     assert run(client, api) == counts()
     assert (path.read_bytes(), journal.read_bytes()) == before
@@ -149,7 +149,7 @@ def test_events_outside_season_or_title_are_ignored(client, api, home):
 
 
 def test_event_without_end_lasts_an_hour(home):
-    team = parse(json.loads((home / "team.json").read_text()))
+    team = parse(json.loads((home / "esempio.json").read_text()))
     data = ICS.format(
         events="BEGIN:VEVENT\nUID:x\nDTSTAMP:20261001T080000Z\nDTSTART:20261101T170000Z\nSUMMARY:Allenamento\nEND:VEVENT"
     ).encode()
@@ -184,7 +184,7 @@ def test_journal_keeps_what_was_replaced_and_no_calendar_address(
     client.put(f"{api}/1/attendance", json={"attendance": {"1": "present"}})
     client.put(f"{api}/1/attendance", json={"attendance": {"1": "absent"}})
     run(client, api)
-    lines = (tmp_path / "data" / "journal.jsonl").read_text().splitlines()
+    lines = (tmp_path / "data" / "esempio" / "journal.jsonl").read_text().splitlines()
     records = [json.loads(line) for line in lines]
     assert [r["op"] for r in records] == ["add", "attendance", "attendance", "import"]
     change = records[2]["changed"][0]

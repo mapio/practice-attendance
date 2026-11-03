@@ -17,14 +17,17 @@ NEUTRAL = {name: (STATIC / "icons" / name).read_bytes() for name in NAMES}
 @pytest.fixture
 def real(home, tmp_path, clock):
     """A client on the real pages, which the install page and the icons need."""
-    return TestClient(create_app(home / "team.json", tmp_path / "data", clock, STATIC))
+    return TestClient(create_app(home, tmp_path / "data", clock, STATIC))
 
 
 @pytest.fixture
 def tokens(home, tok):
     salt = (home / "salt").read_text().strip()
-    team = json.loads((home / "team.json").read_text())
-    return {"staff": tok, "athlete": player_token(salt, next(iter(team["roster"])))}
+    team = json.loads((home / "esempio.json").read_text())
+    return {
+        "staff": tok,
+        "athlete": player_token(salt, "esempio", next(iter(team["roster"]))),
+    }
 
 
 def manifest_of(client, token):

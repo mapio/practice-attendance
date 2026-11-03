@@ -6,7 +6,7 @@ import re
 import threading
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NamedTuple
 
 from fastapi import Body, Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,7 +18,7 @@ from . import calendar, stats
 from .errors import ApiError, invalid, not_found
 from .limiter import Limiter
 from .store import Store, fmt, opens_at, parse_instant
-from .team import ConfigError, Team, TeamFile
+from .team import ConfigError, Team, TeamFile, team_files
 from .tokens import player_token, read_salt, staff_token
 
 STATIC = Path(__file__).parent / "static"
@@ -43,40 +43,61 @@ class RevalidatedFiles(StaticFiles):
         return response
 
 
-def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC):
+class Scope(NamedTuple):
+    """What a token opens: the team in force, the player (`None` for the staff)
+    and the team's own store."""
+
+    id: str
+    team: Team
+    player: str | None
+    store: Store
+
+
+def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC):
     """The app; a test fixes `now`. Raises `ValueError` or `ConfigError` if the
-    salt or the team file is unusable."""
-    team_path = Path(team_path)
+    salt or a team file is unusable."""
+    teams_dir = Path(teams_dir)
     static = Path(static)
-    salt = read_salt(team_path.with_name("salt"))
-    token = staff_token(salt)
-    store = Store(data_dir, now)
+    salt = read_salt(teams_dir / "salt")
     languages = None
     if (static / "i18n.json").exists():
         languages = set(json.loads((static / "i18n.json").read_text(encoding="utf-8")))
-    known = {}  # the player tokens of the team in force
+    claims = {}  # team id -> {token: player id, None for the staff's}
 
-    def player_of(team):
-        """{token: player id} of `team`, which a collision refuses."""
-        if known.get("team") is not team:
-            found = {}
+    def claim(team_id):
+        """The `check` of a team's file: the tokens of `team` as `{token: player}`
+        (`None` for the staff), or a `ConfigError` when two are equal, in the team
+        or between teams. They are kept only once the file is accepted."""
+
+        def check(team):
+            found = {staff_token(salt, team_id): None}
             for player in team.roster:
-                slug = player_token(salt, player)
-                if slug == token or slug in found:
+                slug = player_token(salt, team_id, player)
+                if slug in found:
                     raise ConfigError(f"$.roster.{player}: its token is not its own")
                 found[slug] = player
-            known.update(team=team, players=found)
-        return known["players"]
+            for other, others in claims.items():
+                if other != team_id and found.keys() & others.keys():
+                    raise ConfigError(f"$: a token is also one of team {other}")
+            claims[team_id] = found
 
-    teams = TeamFile(team_path, store.named_players, languages, player_of)
+        return check
+
+    stores, teams = {}, {}
+    for team_id, path in team_files(teams_dir).items():
+        stores[team_id] = Store(Path(data_dir) / team_id, now)
+        try:
+            teams[team_id] = TeamFile(
+                path, stores[team_id].named_players, languages, claim(team_id)
+            )
+        except ConfigError as error:
+            raise ConfigError(f"{team_id}: {error}") from None
     limiter = Limiter(
         UNKNOWN_TOKEN_LIMIT, UNKNOWN_TOKEN_WINDOW, lambda: now().timestamp()
     )
     importing = threading.Lock()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.token = token
-    app.state.store = store
 
     def page(name, status=200):
         path = static / name
@@ -113,39 +134,36 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         return await api_error(request, failure)
 
     def caller(request: Request, tok: str):
-        """`(team, player)`, `player` being `None` for the staff token; else 404,
+        """The `Scope` of a token, whose team is the one that holds it; else 404,
         or 429 once the address has asked for too many unknown tokens."""
-        team = teams.current()
         slug = tok.lower()
-        if slug == token:
-            return team, None
-        player = player_of(team).get(slug)
-        if player is None:
-            if not limiter.allow(request.client.host if request.client else "?"):
-                raise ApiError(429, "rate_limited", "too many attempts")
-            raise not_found()
-        return team, player
+        for team_id, file in teams.items():
+            team = file.current()  # every file is checked: a player may be new
+            if slug in claims[team_id]:
+                return Scope(team_id, team, claims[team_id][slug], stores[team_id])
+        if not limiter.allow(request.client.host if request.client else "?"):
+            raise ApiError(429, "rate_limited", "too many attempts")
+        raise not_found()
 
-    def staff(who: Annotated[tuple, Depends(caller)]):
-        """The team, for the staff token alone: a player's gets the 404 of any
+    def staff(scope: Annotated[Scope, Depends(caller)]):
+        """The scope, for a staff token alone: a player's gets the 404 of any
         path that is not hers."""
-        team, player = who
-        if player is not None:
+        if scope.player is not None:
             raise not_found()
-        return team
+        return scope
 
-    def athlete(who: Annotated[tuple, Depends(caller)]):
-        """`(team, player)`, for a player's token alone."""
-        if who[1] is None:
+    def athlete(scope: Annotated[Scope, Depends(caller)]):
+        """The scope, for a player's token alone."""
+        if scope.player is None:
             raise not_found()
-        return who
+        return scope
 
-    Caller = Annotated[tuple, Depends(caller)]
-    Athlete = Annotated[tuple, Depends(athlete)]
-    Staff = Annotated[Team, Depends(staff)]
+    Caller = Annotated[Scope, Depends(caller)]
+    Athlete = Annotated[Scope, Depends(athlete)]
+    Staff = Annotated[Scope, Depends(staff)]
     Payload = Annotated[dict, Body()]
 
-    def practice_of(p):
+    def practice_of(store, p):
         found = store.get(int(p)) if p.isascii() and p.isdigit() else None
         if found is None:
             raise not_found()
@@ -175,7 +193,8 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
             out["announced"] = len(p.get("absences", {}))
         return out
 
-    def listing(team):
+    def listing(scope):
+        team, store = scope.team, scope.store
         shown = [
             p
             for p in store.all()
@@ -210,7 +229,7 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
 
     @app.get("/privacy")
     def privacy():
-        path = team_path.with_name("privacy.html")
+        path = teams_dir / "privacy.html"
         if not path.exists():
             raise not_found()
         return FileResponse(path, headers=NO_CACHE)
@@ -223,21 +242,25 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     def icons(name: str):
         if name not in ICONS:
             raise not_found()
-        own = team_path.with_name(name)
+        own = teams_dir / name
         return FileResponse(own if own.is_file() else static / "icons" / name)
 
     # API
 
     @app.get("/api/{tok}")
-    def api_list(who: Caller):
-        team, player = who
-        if player is not None:
-            return stats.athlete(store.all(), team, player, now())
-        return listing(team)
+    def api_list(scope: Caller):
+        if scope.player is not None:
+            return stats.athlete(scope.store.all(), scope.team, scope.player, now())
+        return listing(scope)
 
     @app.get("/api/{tok}/links")
-    def api_links(team: Staff):
-        tokens = {player: slug for slug, player in player_of(team).items()}
+    def api_links(scope: Staff):
+        team = scope.team
+        tokens = {
+            player: slug
+            for slug, player in claims[scope.id].items()
+            if player is not None
+        }
         return {
             "team": team.public(),
             "players": [
@@ -248,10 +271,11 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
 
     @app.get("/api/{tok}/stats")
     def api_stats(
-        team: Staff,
+        scope: Staff,
         first: str | None = Query(None, alias="from"),
         last: str | None = Query(None, alias="to"),
     ):
+        team, store = scope.team, scope.store
         for text in (first, last):
             if text is not None and not DATE.fullmatch(text):
                 raise invalid("a date is YYYY-MM-DD")
@@ -265,13 +289,14 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         return stats.compute(store.all(), team, first, last, now())
 
     @app.post("/api/{tok}/import")
-    def api_import(team: Staff):
+    def api_import(scope: Staff):
+        team, store = scope.team, scope.store
         if team.calendar is None:
             raise ApiError(409, "no_calendar", "the team file names no calendar")
         with importing:  # one import at a time; another waits for it
             try:
                 events = calendar.practices(
-                    calendar.fetch(team.calendar.url, team_path.parent), team
+                    calendar.fetch(team.calendar.url, teams_dir), team
                 )
             except calendar.CalendarUnavailable as error:
                 log.warning("calendar unavailable: %s", error)
@@ -288,7 +313,7 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         return counts
 
     @app.post("/api/{tok}/practices", status_code=201)
-    def api_add(payload: Payload, team: Staff):
+    def api_add(payload: Payload, scope: Staff):
         start = parse_instant(payload.get("start"))
         if start is None:
             raise invalid("start is a UTC instant")
@@ -300,15 +325,16 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         location = payload.get("location", "")
         if not isinstance(location, str):
             raise invalid("location is text")
-        return view(store.add_manual(start, end, location))
+        return view(scope.store.add_manual(start, end, location))
 
     @app.get("/api/{tok}/{p}")
-    def api_practice(p: str, team: Staff):
-        return detail(team, practice_of(p))
+    def api_practice(p: str, scope: Staff):
+        return detail(scope.team, practice_of(scope.store, p))
 
     @app.patch("/api/{tok}/{p}")
-    def api_edit(p: str, payload: Payload, team: Staff):
-        current = practice_of(p)
+    def api_edit(p: str, payload: Payload, scope: Staff):
+        store = scope.store
+        current = practice_of(store, p)
         fields = {}
         for name in ("start", "end"):
             if name in payload:
@@ -323,42 +349,45 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         return view(store.edit_manual(current["id"], fields))
 
     @app.delete("/api/{tok}/{p}")
-    def api_delete(p: str, team: Staff):
-        store.delete_manual(practice_of(p)["id"])
-        return listing(team)
+    def api_delete(p: str, scope: Staff):
+        scope.store.delete_manual(practice_of(scope.store, p)["id"])
+        return listing(scope)
 
     @app.put("/api/{tok}/{p}/absence")
-    def api_announce(p: str, who: Athlete):
-        team, player = who
-        store.set_absence(practice_of(p)["id"], player, True)
+    def api_announce(p: str, scope: Athlete):
+        team, player, store = scope.team, scope.player, scope.store
+        store.set_absence(practice_of(store, p)["id"], player, True)
         return stats.athlete(store.all(), team, player, now())
 
     @app.delete("/api/{tok}/{p}/absence")
-    def api_withdraw(p: str, who: Athlete):
-        team, player = who
-        store.set_absence(practice_of(p)["id"], player, False)
+    def api_withdraw(p: str, scope: Athlete):
+        team, player, store = scope.team, scope.player, scope.store
+        store.set_absence(practice_of(store, p)["id"], player, False)
         return stats.athlete(store.all(), team, player, now())
 
     @app.put("/api/{tok}/{p}/attendance")
-    def api_attendance(p: str, payload: Payload, team: Staff):
+    def api_attendance(p: str, payload: Payload, scope: Staff):
+        team, store = scope.team, scope.store
         attendance = payload.get("attendance")
         if not isinstance(attendance, dict) or not all(
             isinstance(s, str) for s in attendance.values()
         ):
             raise invalid("attendance is {player-id: status}")
-        updated = store.set_attendance(practice_of(p)["id"], attendance, team.roster)
+        updated = store.set_attendance(
+            practice_of(store, p)["id"], attendance, team.roster
+        )
         return detail(team, updated)
 
     # pages
 
     @app.get("/{tok}")
     @app.get("/{tok}/")  # the installed app's scope and start: a directory
-    def page_list(who: Caller):
-        return page("list.html" if who[1] is None else "athlete.html")
+    def page_list(scope: Caller):
+        return page("list.html" if scope.player is None else "athlete.html")
 
     # before `/{tok}/{p}`, which would take the name for a practice
     @app.get("/{tok}/manifest.webmanifest")
-    def manifest(tok: str, who: Caller):
+    def manifest(tok: str, scope: Caller):
         start = f"/{tok}/"
         body = {
             "id": start,
@@ -385,16 +414,16 @@ def create_app(team_path, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         )
 
     @app.get("/{tok}/links")
-    def page_links(team: Staff):
+    def page_links(scope: Staff):
         return page("links.html")
 
     @app.get("/{tok}/stats")
-    def page_stats(team: Staff):
+    def page_stats(scope: Staff):
         return page("stats.html")
 
     @app.get("/{tok}/{p}")
-    def page_practice(p: str, team: Staff):
-        practice_of(p)
+    def page_practice(p: str, scope: Staff):
+        practice_of(scope.store, p)
         return page("practice.html")
 
     return app

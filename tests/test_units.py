@@ -7,10 +7,11 @@ from practice_attendance.team import ConfigError, parse
 from practice_attendance.tokens import ALPHABET, read_salt, staff_token
 
 
-def test_token_is_six_letters_of_the_alphabet_and_depends_on_the_salt():
-    a, b = staff_token("one"), staff_token("two")
+def test_token_is_six_letters_of_the_alphabet_and_depends_on_salt_and_team():
+    a, b = staff_token("one", "t"), staff_token("two", "t")
     assert len(a) == 6 and set(a) <= set(ALPHABET)
-    assert a == staff_token("one") and a != b
+    assert a == staff_token("one", "t") and a != b
+    assert a != staff_token("one", "u")
 
 
 def test_salt_is_stripped_and_must_not_be_empty(tmp_path):
@@ -69,11 +70,26 @@ def test_server_does_not_start_without_salt(home, tmp_path, pages):
 
     (home / "salt").unlink()
     with pytest.raises(ValueError, match="salt"):
-        create_app(home / "team.json", tmp_path / "data", static=pages)
+        create_app(home, tmp_path / "data", static=pages)
+
+
+def test_server_does_not_start_without_a_team_file_or_with_a_bad_id(
+    home, tmp_path, pages
+):
+    from practice_attendance.server import create_app
+
+    (home / "Bad_Id.json").write_text((home / "prova.json").read_text())
+    with pytest.raises(ConfigError, match="Bad_Id"):
+        create_app(home, tmp_path / "data", static=pages)
+    (home / "Bad_Id.json").unlink()
+    (home / "esempio.json").unlink()
+    (home / "prova.json").unlink()
+    with pytest.raises(ConfigError, match="no team file"):
+        create_app(home, tmp_path / "data", static=pages)
 
 
 def test_reload_keeps_the_previous_team_when_the_new_file_is_refused(client, api, home):
-    path = home / "team.json"
+    path = home / "esempio.json"
     team = json.loads(path.read_text())
     team["name"] = "Nuova"
     path.write_text(json.dumps(team))
@@ -87,7 +103,7 @@ def test_reload_refuses_a_file_dropping_a_player_with_attendance(
 ):
     client.post(f"{api}/practices", json={"start": "2026-10-23T10:00:00Z"})
     client.put(f"{api}/1/attendance", json={"attendance": {"12": "present"}})
-    path = home / "team.json"
+    path = home / "esempio.json"
     team = json.loads(path.read_text())
     del team["roster"]["12"]
     team["name"] = "Senza"

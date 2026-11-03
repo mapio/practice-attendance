@@ -4,6 +4,7 @@ changes."""
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -97,6 +98,23 @@ def parse(obj, languages=None):
         if not player or not isinstance(shown, str) or not shown.strip():
             raise ConfigError(f"$.roster.{player}: expected a non-empty name")
     return Team(name, lang, timezone, start, end, calendar, dict(roster))
+
+
+TEAM_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
+
+
+def team_files(directory):
+    """`{team id: path}` of the `*.json` files of the team directory, in the order
+    of the ids. A file whose name is not a valid id, or no file at all, is a
+    `ConfigError`."""
+    found = {}
+    for path in sorted(Path(directory).glob("*.json")):
+        if not TEAM_ID.fullmatch(path.stem):
+            raise ConfigError(f"{path}: {path.stem!r} is not a valid team id")
+        found[path.stem] = path
+    if not found:
+        raise ConfigError(f"{directory}: no team file (<id>.json)")
+    return found
 
 
 class TeamFile:

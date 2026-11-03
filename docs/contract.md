@@ -56,13 +56,14 @@ file included.
 
 ### Reloading
 
-On each request the server compares the modification time of the file of the
-team concerned with the one it loaded; when it differs, the file is read again.
-A file that passes the validation replaces that team's configuration at once.
-One that fails, that drops a player the team's attendance names, or whose tokens
-collide with those of another team (see *Tokens*), is refused: the previous
-configuration stays in force and the server logs the reason once per change.
-Teams do not affect one another: a refused file leaves the others as they are.
+On each request with a token the server compares the modification time of every
+team file with the one it loaded (the token may belong to a player a file has
+just added); when one differs, that file is read again. A file that passes the
+validation replaces that team's configuration at once. One that fails, that
+drops a player the team's attendance names, or whose tokens collide with those
+of another team (see *Tokens*), is refused: the previous configuration stays in
+force and the server logs the reason once per change. Teams do not affect one
+another: a refused file leaves the others as they are.
 
 ### Practices file
 

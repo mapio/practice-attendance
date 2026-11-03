@@ -9,6 +9,7 @@ from practice_attendance.server import create_app
 from practice_attendance.tokens import staff_token
 
 EXAMPLE = Path(__file__).parent.parent / "example"
+TEAM = "esempio"  # the example team the fixtures work on; "prova" is the other
 
 
 class Clock:
@@ -45,7 +46,7 @@ def home(tmp_path):
 @pytest.fixture
 def make_client(home, tmp_path, pages, clock):
     def make(**kwargs):
-        app = create_app(home / "team.json", tmp_path / "data", clock, pages)
+        app = create_app(home, tmp_path / "data", clock, pages)
         return TestClient(app, **kwargs)
 
     return make
@@ -58,7 +59,7 @@ def client(make_client):
 
 @pytest.fixture
 def tok(home):
-    return staff_token((home / "salt").read_text().strip())
+    return staff_token((home / "salt").read_text().strip(), TEAM)
 
 
 @pytest.fixture

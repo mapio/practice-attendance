@@ -10,7 +10,7 @@ from pathlib import Path
 import uvicorn
 
 from .server import create_app
-from .team import ConfigError, parse
+from .team import ConfigError, parse, team_files
 from .tokens import player_token, read_salt, staff_token
 
 
@@ -19,7 +19,7 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("serve", "urls"):
         command = commands.add_parser(name)
-        command.add_argument("--team", type=Path, default=Path("teams/team.json"))
+        command.add_argument("--teams", type=Path, default=Path("teams"))
         if name == "serve":
             command.add_argument("--data", type=Path, default=Path("data"))
             command.add_argument("--logs", type=Path, default=Path("logs"))
@@ -36,15 +36,17 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "urls":
-            salt = read_salt(args.team.with_name("salt"))
+            salt = read_salt(args.teams / "salt")
             base = args.base.rstrip("/")
-            # the trailing slash is the installed app's scope: a link with it opens
-            # in the app where it is installed
-            print(f"{base}/{staff_token(salt)}/")
-            if args.players:
-                team = parse(json.loads(args.team.read_text(encoding="utf-8")))
-                for player, name in team.roster.items():
-                    print(f"{name}: {base}/{player_token(salt, player)}/")
+            for team_id, path in team_files(args.teams).items():
+                print(f"# {team_id}")
+                # the trailing slash is the installed app's scope: a link with it
+                # opens in the app where it is installed
+                print(f"{base}/{staff_token(salt, team_id)}/")
+                if args.players:
+                    team = parse(json.loads(path.read_text(encoding="utf-8")))
+                    for player, name in team.roster.items():
+                        print(f"{name}: {base}/{player_token(salt, team_id, player)}/")
             return 0
         args.logs.mkdir(parents=True, exist_ok=True)
         handler = RotatingFileHandler(
@@ -52,7 +54,7 @@ def main(argv=None):
         )
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         logging.getLogger("practice-attendance").addHandler(handler)
-        app = create_app(args.team, args.data)
+        app = create_app(args.teams, args.data)
     except (OSError, ValueError, ConfigError) as error:
         print(f"practice-attendance: {error}", file=sys.stderr)
         return 1

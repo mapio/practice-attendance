@@ -1,0 +1,17 @@
+{
+  "name": "Squadra Prova",
+  "lang": "it",
+  "timezone": "Europe/Rome",
+  "season": {
+    "from": "2026-09-01",
+    "to": "2027-06-15"
+  },
+  "roster": {
+    "1": "Agnese",
+    "2": "Benedetta",
+    "3": "Costanza",
+    "4": "Dalia",
+    "5": "Elisa",
+    "6": "Federica"
+  }
+}
