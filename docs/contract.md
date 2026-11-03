@@ -50,6 +50,11 @@ team directory with no team file is refused.
   every practice is added by hand.
 - `roster`: `{player-id: display name}`. Ids are stable text and carry no name
   (`"7"`); the practices refer to them.
+- `coach`: optional, the id of the team's coach, with the syntax of a team id
+  (lowercase letters, digits and hyphens, beginning with a letter or a digit).
+  It names a person, not a file: a coach is the teams that name her, and a team
+  has one coach. Without it the team has the staff link only. It is never sent
+  to a browser.
 
 The server validates every file at startup and names the offending path, the
 file included.
@@ -105,14 +110,32 @@ teams, the staff's included, are refused like any invalid team file: at startup
 the server does not start, on a reload the file whose tokens collide with the
 others' is the one refused.
 
+A coach has one more token, for all her teams: ten letters from the same
+alphabet, the SHA-256 of `<salt>:coach:<coach id>` read as base-12 digits, first
+ten. The lengths of the other tokens (six) and of the coach's (ten) cannot be
+mistaken for one another, which is how a page tells them apart. A coach token
+equal to any other token is refused like the collisions above, naming the file
+of the team that names the coach. A coach's teams are those whose file names
+her, in the order of the file names; the token is valid while at least one does,
+and the teams may change when a file is reloaded.
+
+The coach token has the staff's rights on each of her teams, through the paths
+of *Endpoints* that carry the team's id, and none on a team that does not name
+her: such a path gets `404`, as an unknown path does, and counts against the
+limit below. Without a team id a coach token opens only the tab page, the
+manifest and the list of her teams. The staff and player tokens of a team work
+as before, unchanged.
+
 The content of the salt file, minus surrounding whitespace, must not be empty;
 it is never committed and must be kept, since the links depend on it. The server
 does not log a token; `practice-attendance urls` prints, for each team in the
 order of the ids, its id on a line of its own beginning with `#`, then its staff
-link, and with `--players` the link of each player, each ending in a slash: that
-is the scope of the installed app, so a link opens in the app where it is
+link, and with `--players` the link of each player, then, for each coach in the
+order of the ids, `# coach <id>` and her link, each ending in a slash: that is
+the scope of the installed app, so a link opens in the app where it is
 installed. A link cannot be revoked alone: changing the salt changes them all;
-renaming a team file changes the links of that team.
+renaming a team file changes the links of that team, and a coach's id those of
+that coach.
 
 The staff token opens everything. A player token opens only the page and the
 record of that player (see *Athlete record*) and, to announce or withdraw her
@@ -224,6 +247,13 @@ URLs are short because they are typed and sent around: a token alone (`<tok>`
 below) and a practice by its id (`<p>`), for example `/hmdpet/12`. An unknown
 token and an unknown practice give the same `404`, so nothing can be probed.
 
+A coach's token takes the team's id between the token and the rest of the path:
+every path below that the staff token opens is also opened by a coach token as
+`/<coach>/<team id>/...`, and likewise under `/api`, with the same behaviour for
+that team (`/<coach>/<team id>/12`, `/api/<coach>/<team id>/12/attendance`). The
+page of the coach token is the tab page; the others are described in *Pages* and
+*API*.
+
 ### Pages
 
 Static HTML in `src/practice_attendance/static/`, with Pico (`vendor/pico/`),
@@ -232,10 +262,16 @@ Static HTML in `src/practice_attendance/static/`, with Pico (`vendor/pico/`),
 - `/`: `404`, `notfound.html`, the page of the link that does not work.
 - `/<tok>` and `/<tok>/`: `list.html`, the list of practices, for the staff
   token; `athlete.html`, the record of a player (see *Athlete record*), for a
-  player's. The directory form is the scope and start of the installed app.
+  player's. The directory form is the scope and start of the installed app. For
+  a coach token it is the tab page: `list.html`, with one tab for each of her
+  teams, showing the team's name, in the order of the file names; the first tab
+  is open. A tab leads to `/<coach>/<team id>/`, the staff list of that team,
+  and every page a coach reaches carries the tab bar above the staff menu; the
+  installed app's scope, `/<coach>/`, covers them all. A coach with one team has
+  one tab.
 - `/<tok>/manifest.webmanifest`: the web manifest of that token's page, for the
-  staff token and for each player's: `application/manifest+json`, name
-  `PracticeAttendance` and short name `Attendance` for everyone,
+  staff token, for each player's and for a coach's: `application/manifest+json`,
+  name `PracticeAttendance` and short name `Attendance` for everyone,
   `display: standalone`, and `id`, `start_url` and `scope` all `/<tok>/`; icons
   `/icons/icon-192.png`, `/icons/icon-512.png` and
   `/icons/icon-maskable-512.png` (maskable). An unknown token gives the usual
@@ -274,6 +310,10 @@ the answer stays JSON.
 The same paths under `/api`, mirroring the pages (never typed, so no need to
 shorten further).
 
+- `GET /api/<coach>`: for a coach token `{teams: [{id, name}]}`, her teams in
+  the order of the file names: the id and the name of each, never another team
+  and never a token. The tab page reads it; it is the only API request a coach
+  token makes without a team id.
 - `GET /api/<tok>`: for the staff token `{team, practices, imported_at}`,
   `practices` a list by `start` of the practices that are not cancelled, then of
   the cancelled ones that have attendance; `imported_at` the UTC instant of the
