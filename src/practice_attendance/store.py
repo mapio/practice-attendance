@@ -12,7 +12,7 @@ from pathlib import Path
 from . import journal
 from .errors import ApiError
 
-OPENS_BEFORE = timedelta(minutes=60)
+OPENS_BEFORE = timedelta(hours=12)
 NOTICE_BEFORE = timedelta(hours=6)
 STATUSES = ("present", "absent", "excused")
 

@@ -57,7 +57,7 @@ def test_add_edit_delete_manual_practice(client, api):
     assert r.status_code == 201
     p = r.json()
     assert p["end"] == "2026-10-23T19:00:00Z" and p["source"] == "manual"
-    assert p["opens_at"] == "2026-10-23T17:00:00Z" and p["open"] is False
+    assert p["opens_at"] == "2026-10-23T06:00:00Z" and p["open"] is True
     r = client.patch(
         f"{api}/1", json={"location": "Altrove", "end": "2026-10-23T20:00:00Z"}
     )
@@ -76,11 +76,11 @@ def test_invalid_add(client, api):
 
 
 def test_attendance_window_follows_the_clock(client, api, clock):
-    add(client, api)
+    add(client, api, start="2026-10-24T18:00:00Z")  # opens at 06:00Z the 24th
     body = {"attendance": {"1": "present", "2": "absent"}}
     error(client.put(f"{api}/1/attendance", json=body), 409, "not_open_yet")
     assert client.get(f"{api}/1").json()["attendance"] is None
-    clock.t += timedelta(hours=5)  # 17:00Z, exactly at opens_at
+    clock.t += timedelta(hours=18)  # 06:00Z the 24th, exactly at opens_at
     r = client.put(f"{api}/1/attendance", json=body)
     assert r.status_code == 200 and r.json()["attendance"] == body["attendance"]
     assert r.json()["practice"]["taken"] is True

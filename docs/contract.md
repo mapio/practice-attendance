@@ -109,9 +109,9 @@ with a known token are not limited.
 
 ## Window
 
-Attendance is accepted from `opens_at`, 60 minutes before the practice's
-`start`, and never locks: it can be corrected afterwards. Before `opens_at` the
-write is refused with `409 not_open_yet`. Reads are never refused.
+Attendance is accepted from `opens_at`, 12 hours before the practice's `start`,
+and never locks: it can be corrected afterwards. Before `opens_at` the write is
+refused with `409 not_open_yet`. Reads are never refused.
 
 ### Notice
 
