@@ -11,7 +11,7 @@ import uvicorn
 
 from .server import create_app
 from .team import ConfigError, parse, team_files
-from .tokens import player_token, read_salt, staff_token
+from .tokens import coach_token, player_token, read_salt, staff_token
 
 
 def main(argv=None):
@@ -38,15 +38,20 @@ def main(argv=None):
         if args.command == "urls":
             salt = read_salt(args.teams / "salt")
             base = args.base.rstrip("/")
+            coaches = set()
             for team_id, path in team_files(args.teams).items():
+                team = parse(json.loads(path.read_text(encoding="utf-8")))
+                coaches.add(team.coach)
                 print(f"# {team_id}")
                 # the trailing slash is the installed app's scope: a link with it
                 # opens in the app where it is installed
                 print(f"{base}/{staff_token(salt, team_id)}/")
                 if args.players:
-                    team = parse(json.loads(path.read_text(encoding="utf-8")))
                     for player, name in team.roster.items():
                         print(f"{name}: {base}/{player_token(salt, team_id, player)}/")
+            for coach in sorted(coaches - {None}):
+                print(f"# coach {coach}")
+                print(f"{base}/{coach_token(salt, coach)}/")
             return 0
         args.logs.mkdir(parents=True, exist_ok=True)
         handler = RotatingFileHandler(

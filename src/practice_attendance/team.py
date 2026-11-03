@@ -17,6 +17,9 @@ class ConfigError(Exception):
     pass
 
 
+TEAM_ID = re.compile(r"[a-z0-9][a-z0-9-]*")  # also a coach's id
+
+
 @dataclass(frozen=True)
 class Calendar:
     url: str
@@ -32,6 +35,7 @@ class Team:
     season_to: date
     calendar: Calendar | None
     roster: dict  # player id -> display name, in file order
+    coach: str | None = None  # the coach's id, if the file names one
 
     @property
     def tz(self):
@@ -97,10 +101,12 @@ def parse(obj, languages=None):
     for player, shown in roster.items():
         if not player or not isinstance(shown, str) or not shown.strip():
             raise ConfigError(f"$.roster.{player}: expected a non-empty name")
-    return Team(name, lang, timezone, start, end, calendar, dict(roster))
-
-
-TEAM_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
+    coach = None
+    if "coach" in obj:
+        coach = _text(obj, "coach", "$")
+        if not TEAM_ID.fullmatch(coach):
+            raise ConfigError("$.coach: expected an id of lowercase letters, digits, -")
+    return Team(name, lang, timezone, start, end, calendar, dict(roster), coach)
 
 
 def team_files(directory):

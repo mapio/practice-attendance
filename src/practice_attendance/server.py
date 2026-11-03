@@ -19,7 +19,7 @@ from .errors import ApiError, invalid, not_found
 from .limiter import Limiter
 from .store import Store, fmt, opens_at, parse_instant
 from .team import ConfigError, Team, TeamFile, team_files
-from .tokens import player_token, read_salt, staff_token
+from .tokens import COACH_LENGTH, coach_token, player_token, read_salt, staff_token
 
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger("practice-attendance")
@@ -43,14 +43,32 @@ class RevalidatedFiles(StaticFiles):
         return response
 
 
+class CoachPaths:
+    """Pure ASGI middleware: applies `rewrite` to the path of each request, so that
+    a coach's path reaches the routes as the staff path of the team it names."""
+
+    def __init__(self, app, rewrite):
+        self.app = app
+        self.rewrite = rewrite
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = self.rewrite(scope["path"])
+            if path != scope["path"]:
+                scope = {**scope, "path": path, "raw_path": path.encode()}
+        await self.app(scope, receive, send)
+
+
 class Scope(NamedTuple):
     """What a token opens: the team in force, the player (`None` for the staff)
-    and the team's own store."""
+    and the team's own store. A coach's token with no team id opens none: `id`,
+    `team` and `store` are `None` and `coach` is hers."""
 
-    id: str
-    team: Team
+    id: str | None
+    team: Team | None
     player: str | None
-    store: Store
+    store: Store | None
+    coach: str | None = None
 
 
 def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC):
@@ -63,11 +81,13 @@ def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     if (static / "i18n.json").exists():
         languages = set(json.loads((static / "i18n.json").read_text(encoding="utf-8")))
     claims = {}  # team id -> {token: player id, None for the staff's}
+    coaches = {}  # team id -> the coach its file names, or None
 
     def claim(team_id):
         """The `check` of a team's file: the tokens of `team` as `{token: player}`
         (`None` for the staff), or a `ConfigError` when two are equal, in the team
-        or between teams. They are kept only once the file is accepted."""
+        or between teams, the coach's included. They are kept only once the file
+        is accepted."""
 
         def check(team):
             found = {staff_token(salt, team_id): None}
@@ -76,10 +96,20 @@ def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC
                 if slug in found:
                     raise ConfigError(f"$.roster.{player}: its token is not its own")
                 found[slug] = player
+            mine = {coach_token(salt, team.coach)} if team.coach else set()
+            if mine & found.keys():
+                raise ConfigError("$.coach: its token is not its own")
             for other, others in claims.items():
-                if other != team_id and found.keys() & others.keys():
+                if other != team_id and (found.keys() | mine) & others.keys():
                     raise ConfigError(f"$: a token is also one of team {other}")
+            for other, coach in coaches.items():
+                if other == team_id or not coach or coach == team.coach:
+                    continue
+                theirs = coach_token(salt, coach)
+                if theirs in found or theirs in mine:
+                    raise ConfigError(f"$: a token is also the coach of team {other}")
             claims[team_id] = found
+            coaches[team_id] = team.coach
 
         return check
 
@@ -98,6 +128,8 @@ def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC
     importing = threading.Lock()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    # before the routing, so that the routes only ever see a staff path
+    app.add_middleware(CoachPaths, rewrite=lambda path: coach_path(path))
 
     def page(name, status=200):
         path = static / name
@@ -133,30 +165,75 @@ def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC
         failure = ApiError(500, "server_error", "something went wrong")
         return await api_error(request, failure)
 
-    def caller(request: Request, tok: str):
-        """The `Scope` of a token, whose team is the one that holds it; else 404,
-        or 429 once the address has asked for too many unknown tokens."""
-        slug = tok.lower()
-        for team_id, file in teams.items():
-            team = file.current()  # every file is checked: a player may be new
-            if slug in claims[team_id]:
-                return Scope(team_id, team, claims[team_id][slug], stores[team_id])
+    def refresh():
+        """Read again the team files that changed: a token may belong to a player
+        a file has just added, or to a coach it now names."""
+        for file in teams.values():
+            file.current()
+
+    def coach_teams(coach):
+        """The ids of the teams that name `coach`, in the order of the files."""
+        return [i for i, file in teams.items() if file.team.coach == coach]
+
+    def coach_of(slug):
+        """The id of the coach whose token is `slug`, if any team names her."""
+        if len(slug) != COACH_LENGTH:
+            return None
+        named = {file.team.coach for file in teams.values()} - {None}
+        return next((c for c in sorted(named) if coach_token(salt, c) == slug), None)
+
+    def unknown(request):
+        """Counts an unknown token against its address, then the `404`, or the
+        `429` once the address has asked too often."""
         if not limiter.allow(request.client.host if request.client else "?"):
             raise ApiError(429, "rate_limited", "too many attempts")
         raise not_found()
 
-    def staff(scope: Annotated[Scope, Depends(caller)]):
+    def caller(request: Request, tok: str):
+        """The `Scope` of a token, whose team is the one that holds it; else 404,
+        or 429 once the address has asked for too many unknown tokens."""
+        slug = tok.lower()
+        refresh()
+        for team_id, file in teams.items():
+            if slug in claims[team_id]:
+                return Scope(team_id, file.team, claims[team_id][slug], stores[team_id])
+        coach = coach_of(slug)
+        if coach is not None:
+            return Scope(None, None, None, None, coach)
+        unknown(request)
+
+    def staff(request: Request, scope: Annotated[Scope, Depends(caller)]):
         """The scope, for a staff token alone: a player's gets the 404 of any
-        path that is not hers."""
+        path that is not hers, and a coach's, on a path that names no team of
+        hers, the 404 of an unknown token."""
+        if scope.coach is not None:
+            unknown(request)
         if scope.player is not None:
             raise not_found()
         return scope
 
-    def athlete(scope: Annotated[Scope, Depends(caller)]):
+    def athlete(request: Request, scope: Annotated[Scope, Depends(caller)]):
         """The scope, for a player's token alone."""
+        if scope.coach is not None:
+            unknown(request)
         if scope.player is None:
             raise not_found()
         return scope
+
+    def coach_path(path):
+        """A coach's `/<coach>/<team id>/rest` as the team's own staff path
+        `/<staff>/rest`, and the same under `/api`; any other path as it is. The
+        pages and the endpoints are then the staff's, unchanged."""
+        parts = path.split("/")
+        at = 2 if parts[1:2] == ["api"] else 1
+        if len(parts) < at + 2 or len(parts[at]) != COACH_LENGTH:
+            return path
+        refresh()
+        coach = coach_of(parts[at].lower())
+        if coach is None or parts[at + 1] not in coach_teams(coach):
+            return path
+        parts[at : at + 2] = [staff_token(salt, parts[at + 1])]
+        return "/".join(parts)
 
     Caller = Annotated[Scope, Depends(caller)]
     Athlete = Annotated[Scope, Depends(athlete)]
@@ -249,6 +326,13 @@ def create_app(teams_dir, data_dir, now=lambda: datetime.now(UTC), static=STATIC
 
     @app.get("/api/{tok}")
     def api_list(scope: Caller):
+        if scope.coach is not None:
+            return {
+                "teams": [
+                    {"id": i, "name": teams[i].team.name}
+                    for i in coach_teams(scope.coach)
+                ]
+            }
         if scope.player is not None:
             return stats.athlete(scope.store.all(), scope.team, scope.player, now())
         return listing(scope)

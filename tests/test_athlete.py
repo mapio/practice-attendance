@@ -144,6 +144,12 @@ def test_urls_prints_each_teams_staff_link_and_with_players_each_players(
         f"https://x.test/{staff_token(salt)}/",
         "# prova",
         f"https://x.test/{tokens.staff_token(salt, 'prova')}/",
+        "# terza",
+        f"https://x.test/{tokens.staff_token(salt, 'terza')}/",
+        "# coach marta",  # one link for the two teams she coaches
+        f"https://x.test/{tokens.coach_token(salt, 'marta')}/",
+        "# coach paola",
+        f"https://x.test/{tokens.coach_token(salt, 'paola')}/",
     ]
     assert (
         cli.main(["urls", "--teams", teams, "--base", "https://x.test", "--players"])
@@ -155,7 +161,7 @@ def test_urls_prints_each_teams_staff_link_and_with_players_each_players(
         f"https://x.test/{staff_token(salt)}/",
         f"Anna: https://x.test/{player_token(salt, '1')}/",
     ]
-    assert len(lines) == 2 + 12 + 2 + 6
+    assert len(lines) == 2 + 12 + 2 + 6 + 2 + 4 + 4
     assert lines[14] == "# prova"
     assert (
         lines[16]

@@ -84,6 +84,7 @@ def test_server_does_not_start_without_a_team_file_or_with_a_bad_id(
     (home / "Bad_Id.json").unlink()
     (home / "esempio.json").unlink()
     (home / "prova.json").unlink()
+    (home / "terza.json").unlink()
     with pytest.raises(ConfigError, match="no team file"):
         create_app(home, tmp_path / "data", static=pages)
 

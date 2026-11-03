@@ -10,6 +10,10 @@ One server serves any number of teams: each is a file `teams/<id>.json` (see
 `example/`), with its data in `data/<id>/`, and its own staff and athlete links.
 The links carry no team id: the token alone tells the team and the role.
 
+A team file may name a `coach`. A coach is the teams that name her, and she has
+one more link, with a tab for each of her teams, so that one home-screen app
+covers them all; `urls` prints it under `# coach <id>`.
+
 ```
 uv run practice-attendance serve --teams example --data /tmp/data
 uv run practice-attendance urls --teams example --players

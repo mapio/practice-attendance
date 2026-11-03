@@ -1,7 +1,16 @@
 // The pages: one script, the page named by <body data-page>.
 "use strict";
 
-const TOKEN = location.pathname.split("/")[1] || "";
+const SEGMENTS = location.pathname.split("/");
+const TOKEN = SEGMENTS[1] || "";
+// A coach's token is ten letters, the others' six (docs/contract.md, *Tokens*):
+// hers is followed by the id of the team whose pages are shown, and by the
+// practice id one segment later than a staff token's.
+const COACH = TOKEN.length === 10;
+let TEAM_ID = COACH ? SEGMENTS[2] || "" : "";
+let TEAMS = []; // a coach's teams, {id, name}, for the tabs
+// What the paths of the pages and of the API begin with, after `/` and `/api/`.
+const prefix = () => (TEAM_ID ? `${TOKEN}/${TEAM_ID}` : TOKEN);
 const PARAMS = new URLSearchParams(location.search);
 const TIMEOUT_MS = 20000;
 
@@ -66,7 +75,9 @@ function t(key, ...args) {
 // With the query kept, ?lang=xx survives the navigation.
 function link(path) {
   const lang = PARAMS.get("lang");
-  return `/${TOKEN}${path}` + (lang ? `?lang=${encodeURIComponent(lang)}` : "");
+  return (
+    `/${prefix()}${path}` + (lang ? `?lang=${encodeURIComponent(lang)}` : "")
+  );
 }
 
 async function loadStrings(teamLang) {
@@ -174,12 +185,12 @@ class ApiError extends Error {
   }
 }
 
-async function api(method, path, body) {
+async function api(method, path, body, base = prefix()) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(`/api/${TOKEN}${path}`, {
+    res = await fetch(`/api/${base}${path}`, {
       method,
       signal: ctl.signal,
       headers: body ? { "Content-Type": "application/json" } : {},
@@ -237,7 +248,34 @@ function frame(current) {
       t("nav_links"),
     ),
   );
-  document.getElementById("top").replaceChildren(nav);
+  // a coach's teams are tabs above the menu, on every page she reaches
+  const tabs = COACH
+    ? h(
+        "nav",
+        { class: "tabs" },
+        TEAMS.map((team) =>
+          h(
+            "a",
+            {
+              href:
+                `/${TOKEN}/${team.id}/` +
+                (PARAMS.get("lang")
+                  ? `?lang=${encodeURIComponent(PARAMS.get("lang"))}`
+                  : ""),
+              "aria-current": team.id === TEAM_ID ? "page" : false,
+            },
+            team.name,
+          ),
+        ),
+      )
+    : null;
+  document.getElementById("top").replaceChildren(...(tabs ? [tabs] : []), nav);
+}
+
+// A coach's teams for the tabs; the page of `/<coach>/` shows the first.
+async function coachInit() {
+  TEAMS = (await api("GET", "", undefined, TOKEN)).teams;
+  if (!TEAM_ID && TEAMS.length) TEAM_ID = TEAMS[0].id;
 }
 
 function showError(root, e, retry) {
@@ -736,7 +774,7 @@ function renderPractice(root, data, reload) {
 
 async function practicePage() {
   const root = document.getElementById("app");
-  const id = location.pathname.split("/")[2];
+  const id = SEGMENTS[COACH ? 3 : 2];
   const load = async () => {
     const data = await api("GET", `/${id}`);
     await loadStrings(data.team.lang);
@@ -1141,4 +1179,11 @@ const PAGES = {
   notfound: notFoundPage,
   install: installPage,
 };
-PAGES[document.body.dataset.page]?.();
+const page = document.body.dataset.page;
+// the tabs and the first team come first; if they cannot be had the page shows
+// its own error
+const ready =
+  COACH && !["notfound", "install"].includes(page)
+    ? coachInit().catch(() => {})
+    : Promise.resolve();
+ready.then(() => PAGES[page]?.());

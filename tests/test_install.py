@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from practice_attendance.server import STATIC, UNKNOWN_TOKEN_LIMIT, create_app
-from practice_attendance.tokens import player_token
+from practice_attendance.tokens import coach_token, player_token
 
 NAMES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
 NEUTRAL = {name: (STATIC / "icons" / name).read_bytes() for name in NAMES}
@@ -27,6 +27,7 @@ def tokens(home, tok):
     return {
         "staff": tok,
         "athlete": player_token(salt, "esempio", next(iter(team["roster"]))),
+        "coach": coach_token(salt, team["coach"]),
     }
 
 

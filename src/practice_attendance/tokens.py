@@ -7,6 +7,7 @@ from pathlib import Path
 
 ALPHABET = "acdefhmnprtu"
 LENGTH = 6
+COACH_LENGTH = 10
 
 
 def read_salt(path):
@@ -20,14 +21,14 @@ def read_salt(path):
     return salt
 
 
-def _token(text):
-    """The first six base-12 digits of the SHA-256 of `text`."""
+def _token(text, length=LENGTH):
+    """The first `length` base-12 digits of the SHA-256 of `text`."""
     number = int.from_bytes(hashlib.sha256(text.encode()).digest(), "big")
     digits = []
     while number:
         number, digit = divmod(number, len(ALPHABET))
         digits.append(ALPHABET[digit])
-    return "".join(reversed(digits))[:LENGTH]
+    return "".join(reversed(digits))[:length]
 
 
 def staff_token(salt, team_id):
@@ -36,3 +37,9 @@ def staff_token(salt, team_id):
 
 def player_token(salt, team_id, player):
     return _token(f"{salt}:{team_id}:player:{player}")
+
+
+def coach_token(salt, coach_id):
+    """The coach's token, longer than the others so that it cannot be mistaken
+    for one."""
+    return _token(f"{salt}:coach:{coach_id}", COACH_LENGTH)

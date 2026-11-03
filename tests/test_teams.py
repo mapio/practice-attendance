@@ -6,7 +6,7 @@ import pytest
 
 from practice_attendance import server
 from practice_attendance.team import ConfigError
-from practice_attendance.tokens import player_token, staff_token
+from practice_attendance.tokens import ALPHABET, coach_token, player_token, staff_token
 
 START = "2026-10-23T18:00:00Z"  # the clock is the 23rd, 12:00Z
 
@@ -151,8 +151,8 @@ def test_a_team_file_added_while_running_is_served_after_a_restart(
     make_client, home, salt
 ):
     client = make_client()
-    (home / "terza.json").write_text((home / "prova.json").read_text())
-    token = staff_token(salt, "terza")
+    (home / "quarta.json").write_text((home / "prova.json").read_text())
+    token = staff_token(salt, "quarta")
     assert client.get(f"/api/{token}").status_code == 404
     assert make_client().get(f"/api/{token}").status_code == 200
 
@@ -161,3 +161,187 @@ def test_one_refused_team_file_leaves_the_others_serving(client, home, esempio, 
     (home / "prova.json").write_text("{not json")
     assert client.get(prova).json()["team"]["name"] == "Squadra Prova"
     assert client.get(esempio).json()["team"]["name"] == "Squadra Esempio"
+
+
+# the coach token: one link for all her teams
+
+
+@pytest.fixture
+def marta(salt):
+    return coach_token(salt, "marta")
+
+
+@pytest.fixture
+def paola(salt):
+    return coach_token(salt, "paola")
+
+
+def test_a_coach_token_is_ten_letters_and_the_others_six(salt, marta):
+    assert len(marta) == 10 and set(marta) <= set(ALPHABET)
+    assert marta != coach_token(salt, "paola")
+    assert len(staff_token(salt, "esempio")) == len(player_token(salt, "x", "1")) == 6
+
+
+def test_a_coach_sees_her_teams_by_id_and_name_and_no_other(client, marta, paola):
+    body = client.get(f"/api/{marta}").json()
+    assert body == {
+        "teams": [
+            {"id": "esempio", "name": "Squadra Esempio"},
+            {"id": "prova", "name": "Squadra Prova"},
+        ]
+    }
+    assert client.get(f"/api/{paola}").json() == {
+        "teams": [{"id": "terza", "name": "Squadra Terza"}]
+    }
+    assert "Terza" not in client.get(f"/api/{marta}").text
+
+
+def test_a_coach_has_the_staff_rights_on_each_of_her_teams(client, marta):
+    for team, name in (("esempio", "Squadra Esempio"), ("prova", "Squadra Prova")):
+        api = f"/api/{marta}/{team}"
+        assert client.get(api).json()["team"]["name"] == name
+        made = client.post(f"{api}/practices", json={"start": START})
+        assert made.status_code == 201
+        assert client.get(f"{api}/1").json()["practice"]["id"] == 1
+        assert client.get(f"{api}/stats").status_code == 200
+        assert len(client.get(f"{api}/links").json()["players"]) > 0
+        assert client.post(f"{api}/import").status_code in (200, 409)
+
+
+def test_a_coach_takes_attendance_on_two_teams_with_data_apart(
+    client, marta, esempio, prova, tmp_path
+):
+    put = lambda team, status: client.put(
+        f"/api/{marta}/{team}/1/attendance", json={"attendance": {"1": status}}
+    )
+    for team in ("esempio", "prova"):
+        client.post(f"/api/{marta}/{team}/practices", json={"start": START})
+    assert put("esempio", "present").status_code == 200
+    assert put("prova", "absent").status_code == 200
+    assert client.get(f"{esempio}/1").json()["attendance"] == {"1": "present"}
+    assert client.get(f"{prova}/1").json()["attendance"] == {"1": "absent"}
+    assert (tmp_path / "data" / "prova" / "practices.json").exists()
+    assert not (tmp_path / "data" / "terza").exists()
+
+
+def test_a_coach_has_nothing_on_a_team_that_does_not_name_her(
+    client, marta, paola, salt
+):
+    for method, path in (
+        ("get", f"/api/{marta}/terza"),
+        ("get", f"/api/{marta}/terza/stats"),
+        ("get", f"/api/{marta}/terza/links"),
+        ("post", f"/api/{marta}/terza/practices"),
+        ("get", f"/{marta}/terza/"),
+        ("get", f"/{marta}/terza/1"),
+        ("get", f"/api/{paola}/esempio"),
+        ("get", f"/api/{marta}/nosuchteam"),
+    ):
+        assert getattr(client, method)(path).status_code in (404, 422), path
+    assert client.get(f"/api/{marta}/terza").json()["error"] == "not_found"
+    assert client.get(f"/api/{paola}/terza").status_code == 200
+
+
+def test_a_coach_token_without_a_team_opens_only_the_tab_page_and_the_listing(
+    client, marta
+):
+    assert client.get(f"/{marta}/").status_code == 200
+    assert client.get(f"/{marta}").status_code == 200
+    for path in (
+        f"/api/{marta}/stats",
+        f"/api/{marta}/links",
+        f"/api/{marta}/1",
+        f"/api/{marta}/practices",
+        f"/{marta}/stats",
+        f"/{marta}/links",
+        f"/{marta}/1",
+    ):
+        assert client.get(path).status_code == 404, path
+    assert (
+        client.post(f"/api/{marta}/practices", json={"start": START}).status_code == 404
+    )
+    assert (
+        client.put(f"/api/{marta}/1/attendance", json={"attendance": {}}).status_code
+        == 404
+    )
+
+
+def test_a_coach_wrong_team_counts_against_the_limit_of_unknown_tokens(client, marta):
+    from practice_attendance.server import UNKNOWN_TOKEN_LIMIT
+
+    for _ in range(UNKNOWN_TOKEN_LIMIT):
+        assert client.get(f"/api/{marta}/terza").status_code == 404
+    assert client.get(f"/api/{marta}/terza").status_code == 429
+
+
+def test_the_team_pages_of_a_coach_are_the_staff_pages(client, marta):
+    client.post(f"/api/{marta}/prova/practices", json={"start": START})
+    assert "<p>list</p>" in client.get(f"/{marta}/").text
+    assert "<p>list</p>" in client.get(f"/{marta}/prova/").text
+    assert "<p>list</p>" in client.get(f"/{marta}/prova").text
+    assert "<p>practice</p>" in client.get(f"/{marta}/prova/1").text
+    assert "<p>stats</p>" in client.get(f"/{marta}/prova/stats").text
+    assert "<p>links</p>" in client.get(f"/{marta}/prova/links").text
+
+
+def test_the_manifest_of_a_coach_covers_all_her_teams(client, marta):
+    body = client.get(f"/{marta}/manifest.webmanifest").json()
+    assert body["scope"] == body["start_url"] == body["id"] == f"/{marta}/"
+
+
+def test_the_staff_and_player_tokens_still_work_beside_a_coach(client, salt, esempio):
+    assert client.get(esempio).status_code == 200
+    mine = player_token(salt, "esempio", "1")
+    assert client.get(f"/api/{mine}").status_code == 200
+    # and a staff token takes no team id
+    assert client.get(f"{esempio}/prova").status_code == 404
+
+
+def test_a_coach_follows_the_files(make_client, home, salt):
+    client = make_client()
+    team = json.loads((home / "terza.json").read_text())
+    team["coach"] = "marta"
+    (home / "terza.json").write_text(json.dumps(team))
+    marta = coach_token(salt, "marta")
+    ids = [t["id"] for t in client.get(f"/api/{marta}").json()["teams"]]
+    assert ids == ["esempio", "prova", "terza"]
+    # nobody names paola any more: her token opens nothing
+    assert client.get(f"/api/{coach_token(salt, 'paola')}").status_code == 404
+
+
+def test_a_coach_id_must_be_an_id(home, tmp_path, pages):
+    team = json.loads((home / "terza.json").read_text())
+    team["coach"] = "Paola Rossi"
+    (home / "terza.json").write_text(json.dumps(team))
+    with pytest.raises(ConfigError, match=r"terza: \$\.coach"):
+        server.create_app(home, tmp_path / "data", static=pages)
+
+
+def test_a_coach_token_equal_to_another_token_is_refused(
+    home, tmp_path, pages, monkeypatch, salt
+):
+    taken = staff_token(salt, "esempio")
+    monkeypatch.setattr(
+        server, "coach_token", lambda s, coach: taken if coach == "paola" else "x" * 10
+    )
+    with pytest.raises(ConfigError, match=r"terza: \$"):
+        server.create_app(home, tmp_path / "data", static=pages)
+
+
+def test_a_reload_naming_a_coach_whose_token_collides_is_refused(
+    make_client, home, salt, monkeypatch
+):
+    client = make_client()
+    real = server.coach_token
+    taken = player_token(salt, "esempio", "1")
+    monkeypatch.setattr(
+        server, "coach_token", lambda s, c: taken if c == "zeta" else real(s, c)
+    )
+    path = home / "prova.json"
+    team = json.loads(path.read_text())
+    team["coach"] = "zeta"
+    team["name"] = "Collide"
+    path.write_text(json.dumps(team))
+    api = f"/api/{staff_token(salt, 'prova')}"
+    assert client.get(api).json()["team"]["name"] == "Squadra Prova"
+    assert client.get(f"/api/{taken}").json()["player"]["name"] == "Anna"

@@ -53,6 +53,13 @@
   color: var(--pico-primary-inverse);
 }
 
+/* a coach's teams, above the menu */
+#top nav.tabs {
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
 h2 {
   font-size: 1rem;
   color: var(--pico-muted-color);

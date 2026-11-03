@@ -1,5 +1,6 @@
 {
   "name": "Squadra Esempio",
+  "coach": "marta",
   "lang": "it",
   "timezone": "Europe/Rome",
   "season": {
