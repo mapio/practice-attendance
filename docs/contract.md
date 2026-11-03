@@ -5,24 +5,34 @@ in the code that depends on it.
 
 ## Files
 
-- `teams/team.json`: the team file, one per server. Read at startup and again
-  when it changes (see *Reloading*); edited by hand.
-- `teams/salt`: the secret the token derives from (see *Tokens*). Required: the
-  server does not start without it.
-- `data/practices.json`: the practices, with their attendance, written by the
-  server only.
-- `data/journal.jsonl`: one line per change of `practices.json` (the practices
-  added, changed and cancelled, and the attendance taken, whole, before and
-  after, with what was done and the time), added and flushed to the disk before
-  the file is replaced. Players appear by identifier only, and the calendar
-  address never. Never read by the server.
-- `data/imported_at`: the UTC instant of the last import, one line, written by
-  the server (it is not in `practices.json`, so that an import that changes
-  nothing leaves that file as it was).
-- `i18n.json`: UI strings, `{lang: {key: text}}`.
+One server serves any number of teams. A team's id is the name of its file
+without `.json`: lowercase letters, digits and hyphens, beginning with a letter
+or a digit. The id is never in a URL; it only names the team's files and seeds
+its tokens.
 
-The server takes the paths of the team file and of the data directory as
-options; the salt is the file `salt` beside the team file.
+- `teams/<id>.json`: the file of one team (see *Team file*). Read at startup and
+  again when it changes (see *Reloading*); edited by hand. The other files of
+  `teams/` (`salt`, `privacy.html`, the icons) are not team files; a `.json`
+  file there whose name is not a valid id is refused.
+- `teams/salt`: the secret the tokens derive from (see *Tokens*), shared by all
+  teams. Required: the server does not start without it.
+- `data/<id>/practices.json`: the practices of that team, with their attendance,
+  written by the server only.
+- `data/<id>/journal.jsonl`: one line per change of that `practices.json` (the
+  practices added, changed and cancelled, and the attendance taken, whole,
+  before and after, with what was done and the time), added and flushed to the
+  disk before the file is replaced. Players appear by identifier only, and the
+  calendar address never. Never read by the server.
+- `data/<id>/imported_at`: the UTC instant of the last import, one line, written
+  by the server (it is not in `practices.json`, so that an import that changes
+  nothing leaves that file as it was).
+- `i18n.json`: UI strings, `{lang: {key: text}}`, the same for every team.
+
+The server takes the paths of the directory of the team files and of the data
+directory as options; the salt is the file `salt` in the team directory. The
+teams are those found there at startup: a team file added later is read at the
+next start, not before (the files already read are watched, see *Reloading*). A
+team directory with no team file is refused.
 
 ### Team file
 
@@ -34,28 +44,31 @@ options; the salt is the file `salt` beside the team file.
   imported only within them, and they are the default range of the statistics.
 - `calendar`: optional, `{url, title}`. `url` is the secret iCal address of the
   calendar; it is never sent to a browser nor written to a log or a journal. It
-  may also be a file path (relative to the team file's directory) or a `file://`
-  URL, for trials and tests. `title` is the word a practice's title begins with
+  may also be a file path (relative to the team directory) or a `file://` URL,
+  for trials and tests. `title` is the word a practice's title begins with
   (`Allenamento`), compared ignoring case. Without it nothing is imported and
   every practice is added by hand.
 - `roster`: `{player-id: display name}`. Ids are stable text and carry no name
   (`"7"`); the practices refer to them.
 
-The server validates the whole file at startup and names the offending path.
+The server validates every file at startup and names the offending path, the
+file included.
 
 ### Reloading
 
-On each request the server compares the modification time of the team file with
-the one it loaded; when it differs, the file is read again. A file that passes
-the validation replaces the configuration at once. One that fails, or that drops
-a player an attendance names, is refused: the previous configuration stays in
-force and the server logs the reason once per change.
+On each request the server compares the modification time of the file of the
+team concerned with the one it loaded; when it differs, the file is read again.
+A file that passes the validation replaces that team's configuration at once.
+One that fails, that drops a player the team's attendance names, or whose tokens
+collide with those of another team (see *Tokens*), is refused: the previous
+configuration stays in force and the server logs the reason once per change.
+Teams do not affect one another: a refused file leaves the others as they are.
 
 ### Practices file
 
-`data/practices.json` is `{"next_id": k, "practices": [...]}`, rewritten whole,
-atomically, after each change; `next_id` only grows, so a practice id is never
-reused. A practice is:
+`data/<id>/practices.json` is `{"next_id": k, "practices": [...]}`, rewritten
+whole, atomically, after each change; `next_id` only grows, so a practice id is
+never reused. A practice is:
 
 - `id`: integer from `next_id`.
 - `source`: `calendar` or `manual`.
@@ -80,20 +93,25 @@ Practices are kept in order of `start`.
 
 ## Tokens
 
-The server has one token for the staff and one for each player of the roster,
+Each team has one token for its staff and one for each player of its roster,
 never written in the team file: six lowercase letters from `acdefhmnprtu`,
 common Italian letters that cannot be taken for a digit or for another letter. A
 URL is matched case-insensitively. The server computes them: the SHA-256 of
-`<salt>:staff` for the staff, of `<salt>:player:<id>` for a player, read as
-base-12 digits, first six. A roster that makes two tokens equal, the staff's
-included, is refused like any invalid team file.
+`<salt>:<team id>:staff` for the staff, of `<salt>:<team id>:player:<id>` for a
+player, read as base-12 digits, first six. The token alone, with no team id in
+the URL, tells the team and the role. Two equal tokens, within a team or between
+teams, the staff's included, are refused like any invalid team file: at startup
+the server does not start, on a reload the file whose tokens collide with the
+others' is the one refused.
 
 The content of the salt file, minus surrounding whitespace, must not be empty;
 it is never committed and must be kept, since the links depend on it. The server
-does not log a token; `practice-attendance urls` prints the staff link, and with
-`--players` the link of each player, each ending in a slash: that is the scope
-of the installed app, so a link opens in the app where it is installed. A link
-cannot be revoked alone: changing the salt changes them all.
+does not log a token; `practice-attendance urls` prints, for each team in the
+order of the ids, its id on a line of its own beginning with `#`, then its staff
+link, and with `--players` the link of each player, each ending in a slash: that
+is the scope of the installed app, so a link opens in the app where it is
+installed. A link cannot be revoked alone: changing the salt changes them all;
+renaming a team file changes the links of that team.
 
 The staff token opens everything. A player token opens only the page and the
 record of that player (see *Athlete record*) and, to announce or withdraw her
@@ -226,10 +244,10 @@ Static HTML in `src/practice_attendance/static/`, with Pico (`vendor/pico/`),
   page and `/install` do not. There is no service worker and nothing is stored
   on the device.
 - `/icons/<name>`: one of `icon-192.png`, `icon-512.png`,
-  `icon-maskable-512.png` (any other name is `404`): the file of that name
-  beside the team file if it is there, else the neutral icon of `static/icons/`
-  (made by `scripts/make-icons` from the SVGs there). No token, not counted by
-  the limit.
+  `icon-maskable-512.png` (any other name is `404`): the file of that name in
+  the team directory if it is there (one for all teams), else the neutral icon
+  of `static/icons/` (made by `scripts/make-icons` from the SVGs there). No
+  token, not counted by the limit.
 - `/install`: `install.html`, how to add the app to the home screen (Android
   Chrome, iPhone Safari), in Italian or, with `?lang=en`, English; no token, not
   counted by the limit, no manifest. Every other page, the error page included,
@@ -239,9 +257,9 @@ Static HTML in `src/practice_attendance/static/`, with Pico (`vendor/pico/`),
 - `/<tok>/stats`: `stats.html`, the statistics.
 - `/<tok>/links`: `links.html`, the players' links, to copy and send, for the
   staff token only.
-- `/privacy`: the privacy notice, the file `privacy.html` beside the team file
-  (`404` when it is not there); no token, and not counted by the limit on
-  unknown tokens.
+- `/privacy`: the privacy notice, the file `privacy.html` in the team directory
+  (one for all teams) (`404` when it is not there); no token, and not counted by
+  the limit on unknown tokens.
 - `/static/...`: scripts, style and `i18n.json`.
 - `/favicon.ico`: `204`; it names no token and is not counted by the limit.
 - `?lang=xx` overrides the team's language on any page.
