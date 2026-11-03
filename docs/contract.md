@@ -122,7 +122,7 @@ and the teams may change when a file is reloaded.
 The coach token has the staff's rights on each of her teams, through the paths
 of *Endpoints* that carry the team's id, and none on a team that does not name
 her: such a path gets `404`, as an unknown path does, and counts against the
-limit below. Without a team id a coach token opens only the tab page, the
+limit below. Without a team id a coach token opens only the team page, the
 manifest and the list of her teams. The staff and player tokens of a team work
 as before, unchanged.
 
@@ -251,8 +251,8 @@ A coach's token takes the team's id between the token and the rest of the path:
 every path below that the staff token opens is also opened by a coach token as
 `/<coach>/<team id>/...`, and likewise under `/api`, with the same behaviour for
 that team (`/<coach>/<team id>/12`, `/api/<coach>/<team id>/12/attendance`). The
-page of the coach token is the tab page; the others are described in *Pages* and
-*API*.
+page of the coach token is the team page; the others are described in *Pages*
+and *API*.
 
 ### Pages
 
@@ -263,12 +263,12 @@ Static HTML in `src/practice_attendance/static/`, with Pico (`vendor/pico/`),
 - `/<tok>` and `/<tok>/`: `list.html`, the list of practices, for the staff
   token; `athlete.html`, the record of a player (see *Athlete record*), for a
   player's. The directory form is the scope and start of the installed app. For
-  a coach token it is the tab page: `list.html`, with one tab for each of her
-  teams, showing the team's name, in the order of the file names; the first tab
-  is open. A tab leads to `/<coach>/<team id>/`, the staff list of that team,
-  and every page a coach reaches carries the tab bar above the staff menu; the
-  installed app's scope, `/<coach>/`, covers them all. A coach with one team has
-  one tab.
+  a coach token it is the team page: `list.html`, with a selector holding her
+  teams by name, in the order of the file names; the first team is open.
+  Choosing a team leads to `/<coach>/<team id>/`, the staff list of that team,
+  and every page a coach reaches carries the selector, with the open team
+  chosen, above the staff menu; the installed app's scope, `/<coach>/`, covers
+  them all. A coach with one team has a selector with one entry.
 - `/<tok>/manifest.webmanifest`: the web manifest of that token's page, for the
   staff token, for each player's and for a coach's: `application/manifest+json`,
   name `PracticeAttendance` and short name `Attendance` for everyone,
@@ -312,7 +312,7 @@ shorten further).
 
 - `GET /api/<coach>`: for a coach token `{teams: [{id, name}]}`, her teams in
   the order of the file names: the id and the name of each, never another team
-  and never a token. The tab page reads it; it is the only API request a coach
+  and never a token. The team page reads it; it is the only API request a coach
   token makes without a team id.
 - `GET /api/<tok>`: for the staff token `{team, practices, imported_at}`,
   `practices` a list by `start` of the practices that are not cancelled, then of

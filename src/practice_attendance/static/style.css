@@ -53,11 +53,12 @@
   color: var(--pico-primary-inverse);
 }
 
-/* a coach's teams, above the menu */
-#top nav.tabs {
-  flex-wrap: wrap;
-  margin-bottom: 0.25rem;
-  border-bottom: 1px solid var(--pico-muted-border-color);
+/* a coach's teams, a wide selector above the menu */
+#top select.team-picker {
+  flex-basis: 100%;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
 h2 {

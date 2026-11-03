@@ -248,28 +248,32 @@ function frame(current) {
       t("nav_links"),
     ),
   );
-  // a coach's teams are tabs above the menu, on every page she reaches
-  const tabs = COACH
+  // a coach's teams are a selector above the menu, on every page she reaches
+  const picker = COACH
     ? h(
-        "nav",
-        { class: "tabs" },
+        "select",
+        {
+          class: "team-picker",
+          "aria-label": t("team"),
+          onchange: (event) =>
+            (location.href =
+              `/${TOKEN}/${event.target.value}/` +
+              (PARAMS.get("lang")
+                ? `?lang=${encodeURIComponent(PARAMS.get("lang"))}`
+                : "")),
+        },
         TEAMS.map((team) =>
           h(
-            "a",
-            {
-              href:
-                `/${TOKEN}/${team.id}/` +
-                (PARAMS.get("lang")
-                  ? `?lang=${encodeURIComponent(PARAMS.get("lang"))}`
-                  : ""),
-              "aria-current": team.id === TEAM_ID ? "page" : false,
-            },
+            "option",
+            { value: team.id, selected: team.id === TEAM_ID },
             team.name,
           ),
         ),
       )
     : null;
-  document.getElementById("top").replaceChildren(...(tabs ? [tabs] : []), nav);
+  document
+    .getElementById("top")
+    .replaceChildren(...(picker ? [picker] : []), nav);
 }
 
 // A coach's teams for the tabs; the page of `/<coach>/` shows the first.
