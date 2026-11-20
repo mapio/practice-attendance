@@ -831,6 +831,21 @@ function renderStats(root, stats) {
       ),
     );
   });
+  const gyms = stats.gyms.map((g) => {
+    const pct = Math.round((100 * g.practices) / stats.practices);
+    const label = `${g.name ?? t("gym_unknown")} (${g.practices})`;
+    return h(
+      "li",
+      { class: "stat" },
+      h("span", { class: "name" }, label),
+      h(
+        "span",
+        { class: "bar", role: "img", "aria-label": `${label} ${pct}%` },
+        h("span", { style: `width:${pct}%` }),
+      ),
+      h("span", { class: "num" }, `${pct}%`),
+    );
+  });
   root.replaceChildren(
     h(
       "p",
@@ -840,6 +855,13 @@ function renderStats(root, stats) {
     stats.practices
       ? h("ul", { class: "stats" }, rows)
       : h("p", { class: "muted" }, t("stats_empty")),
+    stats.practices > 0 &&
+      h(
+        "section",
+        {},
+        h("h2", {}, t("stats_gyms")),
+        h("ul", { class: "stats" }, gyms),
+      ),
   );
 }
 

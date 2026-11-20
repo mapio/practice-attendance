@@ -11,6 +11,10 @@
     "url": "calendar.ics",
     "title": "Allenamento"
   },
+  "gyms": {
+    "Verdi": "Scuola Verdi",
+    "Rossini": "Palestra Rossini"
+  },
   "roster": {
     "1": "Anna",
     "2": "Bianca",

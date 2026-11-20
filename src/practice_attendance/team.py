@@ -5,7 +5,7 @@ changes."""
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -36,10 +36,21 @@ class Team:
     calendar: Calendar | None
     roster: dict  # player id -> display name, in file order
     coach: str | None = None  # the coach's id, if the file names one
+    gyms: dict = field(default_factory=dict)  # text of an address -> gym name
 
     @property
     def tz(self):
         return ZoneInfo(self.timezone)
+
+    def gym(self, location):
+        """The gym of a practice's location: the name of the first entry of
+        `gyms` whose text the location contains (ignoring case), else the first
+        comma-separated field of the location, else `None` when it is empty."""
+        found = location.casefold()
+        for fragment, name in self.gyms.items():
+            if fragment.casefold() in found:
+                return name
+        return location.split(",")[0].strip() or None
 
     def public(self):
         """The `team` of the API: the calendar address never leaves the server."""
@@ -106,7 +117,13 @@ def parse(obj, languages=None):
         coach = _text(obj, "coach", "$")
         if not TEAM_ID.fullmatch(coach):
             raise ConfigError("$.coach: expected an id of lowercase letters, digits, -")
-    return Team(name, lang, timezone, start, end, calendar, dict(roster), coach)
+    gyms = obj.get("gyms", {})
+    if not isinstance(gyms, dict):
+        raise ConfigError("$.gyms: expected {address text: gym name}")
+    for fragment, shown in gyms.items():
+        if not fragment.strip() or not isinstance(shown, str) or not shown.strip():
+            raise ConfigError(f"$.gyms.{fragment}: expected a non-empty gym name")
+    return Team(name, lang, timezone, start, end, calendar, dict(roster), coach, gyms)
 
 
 def team_files(directory):

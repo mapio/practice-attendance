@@ -10,6 +10,7 @@ def compute(practices, team, first, last, now):
     present = dict.fromkeys(team.roster, 0)
     excused = dict.fromkeys(team.roster, 0)
     named = dict.fromkeys(team.roster, 0)
+    gyms = {}
     for p in practices:
         start = parse_instant(p["start"])
         if p.get("cancelled") or not first <= start.astimezone(team.tz).date() <= last:
@@ -18,6 +19,8 @@ def compute(practices, team, first, last, now):
             not_taken += start <= now
             continue
         taken += 1
+        gym = team.gym(p["location"])
+        gyms[gym] = gyms.get(gym, 0) + 1
         for player, status in p["attendance"].items():
             if player in named:
                 named[player] += 1
@@ -28,6 +31,12 @@ def compute(practices, team, first, last, now):
         "to": last.isoformat(),
         "practices": taken,
         "not_taken": not_taken,
+        "gyms": [
+            {"name": name, "practices": count}
+            for name, count in sorted(
+                gyms.items(), key=lambda g: (-g[1], g[0] is None, g[0] or "")
+            )
+        ],
         "players": [
             {
                 "id": i,

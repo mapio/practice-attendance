@@ -50,6 +50,11 @@ team directory with no team file is refused.
   every practice is added by hand.
 - `roster`: `{player-id: display name}`. Ids are stable text and carry no name
   (`"7"`); the practices refer to them.
+- `gyms`: optional, `{address text: gym name}`. A practice's `location` belongs
+  to the gym of the first entry, in file order, whose text it contains, ignoring
+  case (a street name is enough); a location no entry matches is its own first
+  comma-separated field. The statistics group the practices by gym. Without it
+  every location is its own gym. The texts are never sent to a browser.
 - `coach`: optional, the id of the team's coach, with the syntax of a team id
   (lowercase letters, digits and hyphens, beginning with a letter or a digit).
   It names a person, not a file: a coach is the teams that name her, and a team
@@ -209,13 +214,16 @@ For a range of local dates (`from`, `to`, inclusive, by the `start` of the
 practice in the team's timezone), the practices counted are those not cancelled;
 those taken count for the players they name.
 
-`{from, to, practices, not_taken, players: [{id, name, present, excused, of}]}`:
-`practices` the number of practices counted that were taken, `not_taken` the
-number of those in the range whose `start` has passed and that nobody has taken
-(so a gap in the record shows), `present`, `excused` and `of` the practices of
-that player in which she is `present`, in which she is `excused`, and in which
-she is named at all (excused ones included, so an excused practice counts as an
-absence in the ratio of `present` to `of`). `players` are in the roster's order.
+`{from, to, practices, not_taken, gyms, players: [{id, name, present, excused, of}]}`:
+`gyms` is `[{name, practices}]`, the taken practices counted by gym (see `gyms`
+in *Team file*), most practices first, then by name; `name` is `null` for an
+empty `location`, the page then says "gym not given". `practices` the number of
+practices counted that were taken, `not_taken` the number of those in the range
+whose `start` has passed and that nobody has taken (so a gap in the record
+shows), `present`, `excused` and `of` the practices of that player in which she
+is `present`, in which she is `excused`, and in which she is named at all
+(excused ones included, so an excused practice counts as an absence in the ratio
+of `present` to `of`). `players` are in the roster's order.
 
 ### Athlete record
 

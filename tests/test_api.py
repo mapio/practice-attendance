@@ -233,3 +233,28 @@ def test_stats(client, api, clock):
     add(client, api, start="2026-10-24T22:30:00Z")
     r = client.get(f"{api}/stats?from=2026-10-25&to=2026-10-25").json()
     assert r["not_taken"] == 0  # future
+
+
+def test_stats_count_the_taken_practices_by_gym(client, api):
+    places = [
+        "Via Verdi 3, 20100 Milano",  # the first entry of the example's gyms
+        "VIA VERDI 3, 20100 Milano",  # case is ignored
+        "Via Rossini 5, 20100 Milano",
+        "Via Bianchi 9, 20100 Milano",  # no entry: its first field
+        "",  # no location at all
+        "Via Verdi 3, 20100 Milano",  # not taken: not counted
+    ]
+    for i, place in enumerate(places):
+        add(client, api, start=f"2026-10-{10 + i}T16:00:00Z", location=place)
+    for i in range(1, 6):
+        client.put(f"{api}/{i}/attendance", json={"attendance": {"1": "present"}})
+    # most practices first, then by name, the empty location last
+    assert client.get(f"{api}/stats").json()["gyms"] == [
+        {"name": "Scuola Verdi", "practices": 2},
+        {"name": "Palestra Rossini", "practices": 1},
+        {"name": "Via Bianchi 9", "practices": 1},
+        {"name": None, "practices": 1},
+    ]
+    one_day = client.get(f"{api}/stats?from=2026-10-12&to=2026-10-12").json()
+    assert one_day["gyms"] == [{"name": "Palestra Rossini", "practices": 1}]
+    assert client.get(f"{api}/stats?from=2026-12-01&to=2026-12-02").json()["gyms"] == []

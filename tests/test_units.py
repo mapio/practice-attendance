@@ -58,11 +58,24 @@ def test_valid_team_parses_and_calendar_is_optional():
         ({"roster": {}}, "$.roster"),
         ({"roster": {"1": ""}}, "$.roster.1"),
         ({"lang": "xx"}, "$.lang"),
+        ({"gyms": ["Verdi"]}, "$.gyms"),
+        ({"gyms": {"Verdi": ""}}, "$.gyms.Verdi"),
+        ({"gyms": {"Verdi": 3}}, "$.gyms.Verdi"),
+        ({"gyms": {" ": "Scuola"}}, "$.gyms"),
     ],
 )
 def test_invalid_team_names_the_path(change, path):
     with pytest.raises(ConfigError, match=path.replace("$", r"\$")):
         parse({**TEAM, **change}, languages={"it", "en"})
+
+
+def test_gym_of_a_location():
+    team = parse({**TEAM, "gyms": {"Verdi": "Scuola", "Via": "Altra"}})
+    assert team.gym("Via Verdi 3, Milano") == "Scuola"  # first entry wins
+    assert team.gym("via rossi 1, Milano") == "Altra"  # case is ignored
+    assert team.gym("Palestra Bianchi, Via Roma") == "Altra"
+    assert parse(TEAM).gym("Palestra Bianchi, Via Roma") == "Palestra Bianchi"
+    assert parse(TEAM).gym("") is None
 
 
 def test_server_does_not_start_without_salt(home, tmp_path, pages):
