@@ -810,8 +810,9 @@ function weekRange(day) {
   return [iso(monday), iso(monday + 6 * 864e5)];
 }
 
-// How the players are listed, kept while the range changes.
-let playerSort = "name";
+// What the page lists, the players by name or by presence or the gyms, kept
+// while the range changes.
+let statsView = "name";
 
 const PLAYER_SORTS = {
   name: (a, b) => a.name.localeCompare(b.name, LANG),
@@ -824,7 +825,8 @@ const PLAYER_SORTS = {
 };
 
 function renderStats(root, stats) {
-  const rows = [...stats.players].sort(PLAYER_SORTS[playerSort]).map((p) => {
+  const order = PLAYER_SORTS[statsView] ?? PLAYER_SORTS.name;
+  const rows = [...stats.players].sort(order).map((p) => {
     const pct = p.of ? Math.round((100 * p.present) / p.of) : 0;
     return h(
       "li",
@@ -849,7 +851,7 @@ function renderStats(root, stats) {
     const label = `${g.name ?? t("gym_unknown")} (${g.practices})`;
     return h(
       "li",
-      { class: "stat" },
+      { class: "stat gym" },
       h("span", { class: "name" }, label),
       h(
         "span",
@@ -865,40 +867,30 @@ function renderStats(root, stats) {
       { class: "muted" },
       t("stats_summary", stats.practices, stats.not_taken),
     ),
-    stats.practices
-      ? h(
-          "section",
-          {},
-          h("h2", {}, t("stats_players")),
+    ...(stats.practices
+      ? [
           h(
             "div",
-            { class: "toolbar" },
-            ...["name", "presence"].map((sort) =>
+            { class: "toolbar views" },
+            ...["name", "presence", "gyms"].map((view) =>
               h(
                 "button",
                 {
                   type: "button",
-                  class: playerSort === sort ? "" : "outline",
-                  "aria-pressed": playerSort === sort,
+                  class: statsView === view ? "" : "outline",
+                  "aria-pressed": statsView === view,
                   onclick: () => {
-                    playerSort = sort;
+                    statsView = view;
                     renderStats(root, stats);
                   },
                 },
-                t(`sort_${sort}`),
+                t(`view_${view}`),
               ),
             ),
           ),
-          h("ul", { class: "stats" }, rows),
-        )
-      : h("p", { class: "muted" }, t("stats_empty")),
-    stats.practices > 0 &&
-      h(
-        "section",
-        {},
-        h("h2", {}, t("stats_gyms")),
-        h("ul", { class: "stats" }, gyms),
-      ),
+          h("ul", { class: "stats" }, statsView === "gyms" ? gyms : rows),
+        ]
+      : [h("p", { class: "muted" }, t("stats_empty"))]),
   );
 }
 

@@ -515,8 +515,15 @@ button.player.unexpected {
   margin-bottom: 1rem;
 }
 
-#result .toolbar {
+/* the choice of list: small buttons, not the range's full-width ones */
+#result .views {
   margin-bottom: 0.5rem;
+}
+
+#result .views > button {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.9rem;
 }
 
 #controls label {
@@ -538,6 +545,11 @@ button.player.unexpected {
   margin: 0;
   padding: 0;
   border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+/* a gym's name and count are longer than a player's name */
+.stat.gym {
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr) 3rem;
 }
 
 .stat .num small.excused {
