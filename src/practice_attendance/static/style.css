@@ -515,6 +515,10 @@ button.player.unexpected {
   margin-bottom: 1rem;
 }
 
+#result .toolbar {
+  margin-bottom: 0.5rem;
+}
+
 #controls label {
   margin-bottom: 0.75rem;
 }

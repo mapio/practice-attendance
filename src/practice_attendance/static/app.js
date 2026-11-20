@@ -810,8 +810,21 @@ function weekRange(day) {
   return [iso(monday), iso(monday + 6 * 864e5)];
 }
 
+// How the players are listed, kept while the range changes.
+let playerSort = "name";
+
+const PLAYER_SORTS = {
+  name: (a, b) => a.name.localeCompare(b.name, LANG),
+  // the share of practices present, then their number, then the name; a player
+  // named in no practice comes last
+  presence: (a, b) =>
+    (b.of ? b.present / b.of : -1) - (a.of ? a.present / a.of : -1) ||
+    b.present - a.present ||
+    a.name.localeCompare(b.name, LANG),
+};
+
 function renderStats(root, stats) {
-  const rows = stats.players.map((p) => {
+  const rows = [...stats.players].sort(PLAYER_SORTS[playerSort]).map((p) => {
     const pct = p.of ? Math.round((100 * p.present) / p.of) : 0;
     return h(
       "li",
@@ -853,7 +866,31 @@ function renderStats(root, stats) {
       t("stats_summary", stats.practices, stats.not_taken),
     ),
     stats.practices
-      ? h("ul", { class: "stats" }, rows)
+      ? h(
+          "section",
+          {},
+          h("h2", {}, t("stats_players")),
+          h(
+            "div",
+            { class: "toolbar" },
+            ...["name", "presence"].map((sort) =>
+              h(
+                "button",
+                {
+                  type: "button",
+                  class: playerSort === sort ? "" : "outline",
+                  "aria-pressed": playerSort === sort,
+                  onclick: () => {
+                    playerSort = sort;
+                    renderStats(root, stats);
+                  },
+                },
+                t(`sort_${sort}`),
+              ),
+            ),
+          ),
+          h("ul", { class: "stats" }, rows),
+        )
       : h("p", { class: "muted" }, t("stats_empty")),
     stats.practices > 0 &&
       h(
